@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CafeProfit - Quản Lý Lợi Nhuận & Giá Thành Quán Nước (MongoDB Atlas & Vercel)</title>
+  <title>CafeProfit - Quản Lý Lợi Nhuận & Giá Thành Quán Nước (Vite & MongoDB Atlas)</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -32,8 +32,7 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   
-  <!-- Custom CSS -->
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/src/style.css">
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
@@ -41,37 +40,34 @@
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16">
-        <!-- Brand Logo -->
         <div class="flex items-center space-x-3">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
             <i data-lucide="coffee" class="w-6 h-6"></i>
           </div>
           <div>
             <span class="text-xl font-extrabold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">CafeProfit</span>
-            <span class="text-xs ml-1.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200">Vercel & Atlas</span>
+            <span class="text-xs ml-1.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200">Vite + MongoDB</span>
           </div>
         </div>
 
-        <!-- Navigation Tabs -->
         <nav class="hidden md:flex space-x-1">
-          <button onclick="switchTab('dashboard')" id="nav-dashboard" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+          <button id="nav-dashboard" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
             <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Tổng quan
           </button>
-          <button onclick="switchTab('costing')" id="nav-costing" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <button id="nav-costing" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
             <i data-lucide="calculator" class="w-4 h-4"></i> Menu & Giá thành 1 ly
           </button>
-          <button onclick="switchTab('inventory')" id="nav-inventory" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <button id="nav-inventory" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
             <i data-lucide="boxes" class="w-4 h-4"></i> Nguyên liệu & Kho
           </button>
-          <button onclick="switchTab('pos')" id="nav-pos" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <button id="nav-pos" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
             <i data-lucide="shopping-cart" class="w-4 h-4"></i> Bán hàng (POS)
           </button>
-          <button onclick="switchTab('cashflow')" id="nav-cashflow" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <button id="nav-cashflow" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
             <i data-lucide="receipt" class="w-4 h-4"></i> Sổ Thu - Chi
           </button>
         </nav>
 
-        <!-- Status badge -->
         <div class="flex items-center space-x-2">
           <div id="db-status-badge" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -82,11 +78,11 @@
 
       <!-- Mobile Navigation Scrollable -->
       <div class="flex md:hidden overflow-x-auto py-2 space-x-2 border-t border-slate-100 text-xs">
-        <button onclick="switchTab('dashboard')" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-emerald-600 text-white">Tổng quan</button>
-        <button onclick="switchTab('costing')" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-slate-100 text-slate-700">Giá thành 1 ly</button>
-        <button onclick="switchTab('inventory')" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-slate-100 text-slate-700">Nguyên liệu</button>
-        <button onclick="switchTab('pos')" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-slate-100 text-slate-700">Bán hàng</button>
-        <button onclick="switchTab('cashflow')" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-slate-100 text-slate-700">Thu - Chi</button>
+        <button id="m-nav-dashboard" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-emerald-600 text-white">Tổng quan</button>
+        <button id="m-nav-costing" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-slate-100 text-slate-700">Giá thành 1 ly</button>
+        <button id="m-nav-inventory" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-slate-100 text-slate-700">Nguyên liệu</button>
+        <button id="m-nav-pos" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-slate-100 text-slate-700">Bán hàng</button>
+        <button id="m-nav-cashflow" class="px-3 py-1.5 rounded-md font-medium whitespace-nowrap bg-slate-100 text-slate-700">Thu - Chi</button>
       </div>
     </div>
   </header>
@@ -94,7 +90,7 @@
   <!-- Main Content Container -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
 
-    <!-- ==================== TAB 1: DASHBOARD ==================== -->
+    <!-- TAB 1: DASHBOARD -->
     <div id="tab-dashboard" class="space-y-8">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
         <div>
@@ -102,10 +98,10 @@
           <p class="text-sm text-slate-500 mt-1">Dữ liệu đồng bộ trực tiếp từ cơ sở dữ liệu MongoDB Atlas</p>
         </div>
         <div class="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
-          <button onclick="loadDashboard('today')" class="period-btn px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900" data-period="today">Hôm nay</button>
-          <button onclick="loadDashboard('7days')" class="period-btn px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900" data-period="7days">7 ngày qua</button>
-          <button onclick="loadDashboard('30days')" class="period-btn active px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white shadow-sm" data-period="30days">30 ngày qua</button>
-          <button onclick="loadDashboard('all')" class="period-btn px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900" data-period="all">Toàn bộ</button>
+          <button class="period-btn px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900" data-period="today">Hôm nay</button>
+          <button class="period-btn px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900" data-period="7days">7 ngày qua</button>
+          <button class="period-btn active px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white shadow-sm" data-period="30days">30 ngày qua</button>
+          <button class="period-btn px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900" data-period="all">Toàn bộ</button>
         </div>
       </div>
 
@@ -194,7 +190,7 @@
       </div>
     </div>
 
-    <!-- ==================== TAB 2: MENU & GIÁ THÀNH 1 LY ==================== -->
+    <!-- TAB 2: MENU & COSTING -->
     <div id="tab-costing" class="hidden space-y-6">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -202,7 +198,7 @@
           <p class="text-sm text-slate-500">Tự động tính chi phí nguyên vật liệu đầu vào (BOM) và biên lợi nhuận lãi gộp từng món</p>
         </div>
         <div class="flex gap-3">
-          <button onclick="openAddProductModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm transition-all">
+          <button id="btn-open-add-product" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm transition-all">
             <i data-lucide="plus-circle" class="w-4 h-4"></i> Thêm Món Nước Mới
           </button>
         </div>
@@ -210,7 +206,7 @@
       <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </div>
 
-    <!-- ==================== TAB 3: NGUYÊN LIỆU & TỒN KHO ==================== -->
+    <!-- TAB 3: INVENTORY -->
     <div id="tab-inventory" class="hidden space-y-6">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -218,7 +214,7 @@
           <p class="text-sm text-slate-500">Đơn vị tính chuẩn, đơn giá nhập kho, cảnh báo cạn kho và giá trị tồn</p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button onclick="openAddIngredientModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm">
+          <button id="btn-open-add-ingredient" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm">
             <i data-lucide="plus" class="w-4 h-4"></i> Thêm Nguyên Liệu
           </button>
         </div>
@@ -247,7 +243,7 @@
         <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3">
           <div class="relative w-full sm:w-72">
             <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
-            <input type="text" id="search-ingredient-input" onkeyup="filterIngredientsTable()" placeholder="Tìm nguyên liệu..." class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <input type="text" id="search-ingredient-input" placeholder="Tìm nguyên liệu..." class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
           <div class="text-xs text-slate-500">
             Click vào nút <span class="font-semibold text-emerald-600">"Nhập kho"</span> để tự động cập nhật tồn kho & sinh phiếu Chi
@@ -274,7 +270,7 @@
       </div>
     </div>
 
-    <!-- ==================== TAB 4: BÁN HÀNG (POS) ==================== -->
+    <!-- TAB 4: POS -->
     <div id="tab-pos" class="hidden">
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-4">
@@ -282,7 +278,7 @@
             <div class="flex gap-2 overflow-x-auto pb-1 max-w-full" id="pos-category-filters"></div>
             <div class="relative w-full sm:w-60">
               <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
-              <input type="text" id="pos-search-input" onkeyup="filterPosProducts()" placeholder="Tìm món nước..." class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <input type="text" id="pos-search-input" placeholder="Tìm món nước..." class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
             </div>
           </div>
           <div id="pos-product-list" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
@@ -293,7 +289,7 @@
             <h2 class="font-bold text-slate-900 flex items-center gap-2">
               <i data-lucide="shopping-bag" class="w-5 h-5 text-emerald-600"></i> Đơn Bán Hàng
             </h2>
-            <button onclick="clearCart()" class="text-xs text-rose-500 hover:underline">Xóa giỏ</button>
+            <button id="btn-clear-cart" class="text-xs text-rose-500 hover:underline">Xóa giỏ</button>
           </div>
 
           <div id="pos-cart-items" class="flex-1 overflow-y-auto py-3 space-y-3 pr-1"></div>
@@ -332,7 +328,7 @@
               </div>
             </div>
 
-            <button onclick="submitPosOrder()" id="btn-submit-order" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
+            <button id="btn-submit-order" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
               <i data-lucide="check-circle" class="w-5 h-5"></i> Hoàn Tất & Trừ Kho Tự Động
             </button>
           </div>
@@ -340,14 +336,14 @@
       </div>
     </div>
 
-    <!-- ==================== TAB 5: SỔ THU - CHI ==================== -->
+    <!-- TAB 5: CASHFLOW -->
     <div id="tab-cashflow" class="hidden space-y-6">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 class="text-2xl font-bold text-slate-900">Sổ Quỹ Thu - Chi (Cashflow)</h1>
           <p class="text-sm text-slate-500">Ghi nhận doanh thu tự động từ đơn bán, chi phí nhập nguyên liệu và các chi phí vận hành khác</p>
         </div>
-        <button onclick="openAddTransactionModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm">
+        <button id="btn-open-add-transaction" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm">
           <i data-lucide="plus" class="w-4 h-4"></i> Tạo Phiếu Thu / Chi Mới
         </button>
       </div>
@@ -370,9 +366,9 @@
       <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div class="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
-            <button onclick="filterTransactions('all')" class="tx-filter-btn active px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 text-white" data-type="all">Tất cả</button>
-            <button onclick="filterTransactions('income')" class="tx-filter-btn px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-type="income">Chỉ Khoản Thu</button>
-            <button onclick="filterTransactions('expense')" class="tx-filter-btn px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-type="expense">Chỉ Khoản Chi</button>
+            <button class="tx-filter-btn active px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 text-white" data-type="all">Tất cả</button>
+            <button class="tx-filter-btn px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-type="income">Chỉ Khoản Thu</button>
+            <button class="tx-filter-btn px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-type="expense">Chỉ Khoản Chi</button>
           </div>
           <span class="text-xs text-slate-500">Hiển thị các giao dịch phát sinh gần nhất</span>
         </div>
@@ -397,14 +393,13 @@
 
   </main>
 
-  <!-- ==================== MODALS ==================== -->
-
+  <!-- MODALS -->
   <!-- Modal: Thêm / Sửa Nguyên Liệu -->
   <div id="modal-ingredient" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="fixed inset-0 modal-backdrop" onclick="closeModal('modal-ingredient')"></div>
+    <div class="fixed inset-0 modal-backdrop" onclick="window.closeModal('modal-ingredient')"></div>
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative z-10 modal-content">
       <h3 id="modal-ingredient-title" class="text-lg font-bold text-slate-900 mb-4">Thêm Nguyên Liệu Mới</h3>
-      <form id="form-ingredient" onsubmit="handleSaveIngredient(event)" class="space-y-4">
+      <form id="form-ingredient" class="space-y-4">
         <input type="hidden" id="ing-id">
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Tên nguyên liệu <span class="text-rose-500">*</span></label>
@@ -447,29 +442,29 @@
           <input type="text" id="ing-notes" placeholder="VD: Bao 1kg = 260.000đ" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
         </div>
         <div class="flex justify-end gap-2 pt-3">
-          <button type="button" onclick="closeModal('modal-ingredient')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
+          <button type="button" onclick="window.closeModal('modal-ingredient')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
           <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl">Lưu Lại</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Modal: Nhập Kho Nguyên Liệu -->
+  <!-- Modal: Nhập Kho -->
   <div id="modal-import-stock" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="fixed inset-0 modal-backdrop" onclick="closeModal('modal-import-stock')"></div>
+    <div class="fixed inset-0 modal-backdrop" onclick="window.closeModal('modal-import-stock')"></div>
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative z-10 modal-content">
       <h3 class="text-lg font-bold text-slate-900 mb-1">Phiếu Nhập Kho Nguyên Liệu</h3>
-      <p id="import-stock-subtitle" class="text-xs text-slate-500 mb-4">Cập nhật số lượng và tự động tạo phiếu Chi</p>
-      <form id="form-import-stock" onsubmit="handleSaveImportStock(event)" class="space-y-4">
+      <p id="import-stock-subtitle" class="text-xs text-slate-500 mb-4"></p>
+      <form id="form-import-stock" class="space-y-4">
         <input type="hidden" id="import-ing-id">
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Số lượng nhập thêm <span id="import-unit-label" class="text-emerald-600 font-bold"></span> <span class="text-rose-500">*</span></label>
-          <input type="number" id="import-qty" required min="1" step="any" placeholder="VD: 1000" oninput="calculateImportTotal()" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <input type="number" id="import-qty" required min="1" step="any" placeholder="VD: 1000" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Đơn giá nhập / 1 đơn vị (đ)</label>
-            <input type="number" id="import-unit-cost" min="0" step="any" oninput="calculateImportTotal()" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <input type="number" id="import-unit-cost" min="0" step="any" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Tổng tiền thanh toán (đ)</label>
@@ -478,16 +473,16 @@
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Ghi chú phiếu nhập</label>
-          <input type="text" id="import-notes" placeholder="VD: Nhập đại lý Cà phê Buôn Ma Thuột" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <input type="text" id="import-notes" placeholder="VD: Nhập đại lý Cà phê" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
         </div>
         <div class="p-3 bg-emerald-50 rounded-xl text-xs text-emerald-800 space-y-1">
           <p class="font-semibold">Hệ thống sẽ tự động:</p>
-          <p>• Cộng thêm số lượng vào tồn kho hiện tại.</p>
+          <p>• Cộng thêm số lượng vào tồn kho trên MongoDB Atlas.</p>
           <p>• Tính lại đơn giá vốn bình quân gia quyền.</p>
           <p>• Ghi một khoản Chi "Nhập nguyên liệu" vào Sổ Thu Chi.</p>
         </div>
         <div class="flex justify-end gap-2 pt-2">
-          <button type="button" onclick="closeModal('modal-import-stock')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
+          <button type="button" onclick="window.closeModal('modal-import-stock')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
           <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl">Xác Nhận Nhập Kho</button>
         </div>
       </form>
@@ -496,14 +491,14 @@
 
   <!-- Modal: Thêm / Sửa Món Nước & Công Thức Định Lượng (Recipe) -->
   <div id="modal-product" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="fixed inset-0 modal-backdrop" onclick="closeModal('modal-product')"></div>
+    <div class="fixed inset-0 modal-backdrop" onclick="window.closeModal('modal-product')"></div>
     <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative z-10 modal-content max-h-[90vh] flex flex-col">
       <div class="flex justify-between items-center pb-3 border-b border-slate-100">
         <h3 id="modal-product-title" class="text-lg font-bold text-slate-900">Thiết Lập Món Nước & Công Thức (BOM)</h3>
-        <button onclick="closeModal('modal-product')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <button onclick="window.closeModal('modal-product')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
 
-      <form id="form-product" onsubmit="handleSaveProduct(event)" class="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+      <form id="form-product" class="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
         <input type="hidden" id="prod-id">
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div class="sm:col-span-2">
@@ -526,7 +521,7 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Giá bán niêm yết (đ) <span class="text-rose-500">*</span></label>
-            <input type="number" id="prod-price" required min="0" step="500" placeholder="VD: 25000" oninput="updateLiveCostCalculation()" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-900">
+            <input type="number" id="prod-price" required min="0" step="500" placeholder="VD: 25000" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-900">
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Icon đại diện (Emoji)</label>
@@ -544,11 +539,10 @@
             <label class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
               <i data-lucide="scale" class="w-4 h-4 text-emerald-600"></i> Định lượng nguyên liệu cho 1 ly
             </label>
-            <button type="button" onclick="addRecipeRow()" class="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1">
+            <button type="button" id="btn-add-recipe-row" class="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1">
               <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Thêm nguyên liệu
             </button>
           </div>
-
           <div id="recipe-rows-container" class="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50"></div>
         </div>
 
@@ -568,7 +562,7 @@
         </div>
 
         <div class="flex justify-end gap-2 pt-2">
-          <button type="button" onclick="closeModal('modal-product')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
+          <button type="button" onclick="window.closeModal('modal-product')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
           <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl">Lưu Món Nước</button>
         </div>
       </form>
@@ -577,14 +571,14 @@
 
   <!-- Modal: Xem Phân Tích Giá Thành Chi Tiết 1 Ly -->
   <div id="modal-cost-breakdown" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="fixed inset-0 modal-backdrop" onclick="closeModal('modal-cost-breakdown')"></div>
+    <div class="fixed inset-0 modal-backdrop" onclick="window.closeModal('modal-cost-breakdown')"></div>
     <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative z-10 modal-content">
       <div class="flex justify-between items-start pb-3 border-b border-slate-100">
         <div>
           <h3 id="breakdown-drink-name" class="text-lg font-bold text-slate-900">Chi Tiết Giá Thành 1 Ly</h3>
           <p id="breakdown-drink-category" class="text-xs text-slate-500"></p>
         </div>
-        <button onclick="closeModal('modal-cost-breakdown')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <button onclick="window.closeModal('modal-cost-breakdown')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
 
       <div class="py-4 space-y-4">
@@ -617,26 +611,26 @@
       </div>
 
       <div class="flex justify-end pt-2">
-        <button onclick="closeModal('modal-cost-breakdown')" class="px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl">Đóng</button>
+        <button onclick="window.closeModal('modal-cost-breakdown')" class="px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl">Đóng</button>
       </div>
     </div>
   </div>
 
   <!-- Modal: Tạo Phiếu Thu / Chi Mới -->
   <div id="modal-transaction" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="fixed inset-0 modal-backdrop" onclick="closeModal('modal-transaction')"></div>
+    <div class="fixed inset-0 modal-backdrop" onclick="window.closeModal('modal-transaction')"></div>
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative z-10 modal-content">
       <h3 class="text-lg font-bold text-slate-900 mb-4">Tạo Phiếu Thu / Chi Mới</h3>
-      <form id="form-transaction" onsubmit="handleSaveTransaction(event)" class="space-y-4">
+      <form id="form-transaction" class="space-y-4">
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Loại giao dịch <span class="text-rose-500">*</span></label>
           <div class="grid grid-cols-2 gap-3">
             <label class="cursor-pointer border border-slate-200 rounded-xl p-2.5 flex items-center justify-center gap-2 text-sm font-medium hover:bg-slate-50">
-              <input type="radio" name="tx-type" value="income" onchange="updateTxCategories()" class="accent-emerald-600">
+              <input type="radio" name="tx-type" value="income" class="accent-emerald-600">
               <span class="text-emerald-700 font-bold">Phiếu Thu (+)</span>
             </label>
             <label class="cursor-pointer border border-slate-200 rounded-xl p-2.5 flex items-center justify-center gap-2 text-sm font-medium hover:bg-slate-50">
-              <input type="radio" name="tx-type" value="expense" checked onchange="updateTxCategories()" class="accent-rose-600">
+              <input type="radio" name="tx-type" value="expense" checked class="accent-rose-600">
               <span class="text-rose-700 font-bold">Phiếu Chi (-)</span>
             </label>
           </div>
@@ -658,18 +652,16 @@
           <input type="date" id="tx-date" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
         </div>
         <div class="flex justify-end gap-2 pt-2">
-          <button type="button" onclick="closeModal('modal-transaction')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
+          <button type="button" onclick="window.closeModal('modal-transaction')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
           <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl">Tạo Phiếu</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Toast Container -->
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
 
-  <!-- App Logic Scripts -->
-  <script src="/js/api.js"></script>
-  <script src="/js/app.js"></script>
+  <!-- Vite entry module -->
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>

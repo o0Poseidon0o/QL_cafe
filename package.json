@@ -1,22 +1,13 @@
 {
-  "name": "ql-cafe-profit-vercel",
+  "name": "ql-cafe-profit-manager",
   "version": "1.0.0",
-  "description": "Webapp quản lý lợi nhuận, giá thành 1 ly nước và kho hàng quán cafe kết nối MongoDB Atlas triển khai trên Vercel",
-  "main": "api/index.js",
+  "description": "Full-stack webapp quản lý lợi nhuận quán nước (Vite Frontend + Express Backend + MongoDB Atlas)",
   "scripts": {
-    "start": "node api/index.js",
-    "dev": "node --watch api/index.js",
-    "seed": "node src/utils/seeder.js"
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "seed": "cd backend && npm run seed",
+    "build": "cd frontend && npm run build"
   },
-  "keywords": [
-    "cafe-management",
-    "profit-calculator",
-    "vercel",
-    "mongodb-atlas",
-    "express"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

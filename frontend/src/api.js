@@ -1,7 +1,7 @@
-// API client layer for Vercel Serverless & MongoDB Atlas
+// API Client layer for Vite frontend
 const API_BASE = '/api';
 
-const API = {
+export const API = {
   async checkHealth() {
     try {
       const res = await fetch(`${API_BASE}/health`);

@@ -1,22 +1,26 @@
-// Global State
+import { API } from './api.js';
+
+// Global state
 let globalIngredients = [];
 let globalProducts = [];
-let globalCart = []; // { product, quantity }
+let globalCart = [];
 let profitChartInstance = null;
 let currentTab = 'dashboard';
 let currentPeriod = '30days';
+let currentTxTypeFilter = 'all';
 
-function formatMoney(amount) {
+// Utility functions
+export function formatMoney(amount) {
   if (isNaN(amount) || amount === null || amount === undefined) return '0 đ';
   return Math.round(amount).toLocaleString('vi-VN') + ' đ';
 }
 
-function formatNumber(num) {
+export function formatNumber(num) {
   if (isNaN(num) || num === null || num === undefined) return '0';
   return Number(num).toLocaleString('vi-VN');
 }
 
-function showToast(message, type = 'success') {
+export function showToast(message, type = 'success') {
   const container = document.getElementById('toast-container');
   if (!container) return;
 
@@ -30,7 +34,7 @@ function showToast(message, type = 'success') {
   const iconName = type === 'success' ? 'check-circle' : type === 'warning' ? 'alert-triangle' : 'alert-circle';
   toast.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 flex-shrink-0"></i> <span>${message}</span>`;
   container.appendChild(toast);
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 
   requestAnimationFrame(() => {
     toast.classList.remove('translate-y-2', 'opacity-0');
@@ -42,26 +46,29 @@ function showToast(message, type = 'success') {
   }, 4000);
 }
 
-function openModal(modalId) {
+// Attach to window so onclick handlers in modals work
+window.openModal = function(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) {
     modal.classList.remove('hidden');
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
   }
-}
+};
 
-function closeModal(modalId) {
+window.closeModal = function(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) modal.classList.add('hidden');
-}
+};
 
-function switchTab(tabId) {
+export function switchTab(tabId) {
   currentTab = tabId;
   const tabs = ['dashboard', 'costing', 'inventory', 'pos', 'cashflow'];
 
   tabs.forEach(t => {
     const el = document.getElementById(`tab-${t}`);
     const navBtn = document.getElementById(`nav-${t}`);
+    const mNavBtn = document.getElementById(`m-nav-${t}`);
+
     if (el) {
       if (t === tabId) el.classList.remove('hidden');
       else el.classList.add('hidden');
@@ -75,6 +82,15 @@ function switchTab(tabId) {
         navBtn.classList.add('text-slate-600', 'hover:bg-slate-100');
       }
     }
+    if (mNavBtn) {
+      if (t === tabId) {
+        mNavBtn.classList.add('bg-emerald-600', 'text-white');
+        mNavBtn.classList.remove('bg-slate-100', 'text-slate-700');
+      } else {
+        mNavBtn.classList.remove('bg-emerald-600', 'text-white');
+        mNavBtn.classList.add('bg-slate-100', 'text-slate-700');
+      }
+    }
   });
 
   if (tabId === 'dashboard') loadDashboard(currentPeriod);
@@ -83,11 +99,11 @@ function switchTab(tabId) {
   if (tabId === 'pos') loadPosData();
   if (tabId === 'cashflow') loadCashflowData();
 
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 // 1. DASHBOARD
-async function loadDashboard(period = currentPeriod) {
+export async function loadDashboard(period = currentPeriod) {
   currentPeriod = period;
 
   document.querySelectorAll('.period-btn').forEach(btn => {
@@ -134,7 +150,7 @@ async function loadDashboard(period = currentPeriod) {
             <span class="font-bold text-slate-800">${item.name}</span>
             <p class="text-amber-700 font-semibold mt-0.5">Còn ${formatNumber(item.stock)} ${item.unit} (Ngưỡng: ${formatNumber(item.alert)})</p>
           </div>
-          <button onclick="quickImportByName('${item.name}')" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold shadow-xs">
+          <button onclick="window.quickImportByName('${item.name}')" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold shadow-xs">
             Nhập ngay
           </button>
         </div>
@@ -160,7 +176,7 @@ async function loadDashboard(period = currentPeriod) {
     }
 
     renderProfitChart(report.chartData);
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -168,10 +184,10 @@ async function loadDashboard(period = currentPeriod) {
 
 function renderProfitChart(chartData) {
   const ctx = document.getElementById('profitChart');
-  if (!ctx) return;
+  if (!ctx || !window.Chart) return;
   if (profitChartInstance) profitChartInstance.destroy();
 
-  profitChartInstance = new Chart(ctx, {
+  profitChartInstance = new window.Chart(ctx, {
     type: 'bar',
     data: {
       labels: chartData.labels || [],
@@ -197,7 +213,7 @@ function renderProfitChart(chartData) {
 }
 
 // 2. MENU & COSTING
-async function loadCostingData() {
+export async function loadCostingData() {
   try {
     const [products, ingredients] = await Promise.all([API.getProducts(), API.getIngredients()]);
     globalProducts = products;
@@ -212,7 +228,7 @@ async function loadCostingData() {
           <p class="text-xs text-slate-400 mt-1">Bấm nút "Thêm Món Nước Mới" để thiết lập công thức định lượng.</p>
         </div>
       `;
-      lucide.createIcons();
+      if (window.lucide) window.lucide.createIcons();
       return;
     }
 
@@ -246,7 +262,7 @@ async function loadCostingData() {
               <div class="flex justify-between">
                 <span class="text-slate-500 flex items-center gap-1">
                   Giá thành 1 ly (COGS):
-                  <i data-lucide="info" class="w-3 h-3 text-slate-400 cursor-pointer" onclick="viewCostBreakdown('${p._id}')"></i>
+                  <i data-lucide="info" class="w-3 h-3 text-slate-400 cursor-pointer" onclick="window.viewCostBreakdown('${p._id}')"></i>
                 </span>
                 <span class="font-bold text-amber-700">${formatMoney(p.costPrice)}</span>
               </div>
@@ -268,14 +284,14 @@ async function loadCostingData() {
           </div>
 
           <div class="flex items-center justify-between pt-4 mt-4 border-t border-slate-100 text-xs">
-            <button onclick="viewCostBreakdown('${p._id}')" class="text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1">
+            <button onclick="window.viewCostBreakdown('${p._id}')" class="text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1">
               <i data-lucide="eye" class="w-3.5 h-3.5"></i> Chi tiết giá thành
             </button>
             <div class="flex gap-2">
-              <button onclick="openEditProductModal('${p._id}')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100" title="Chỉnh sửa">
+              <button onclick="window.openEditProductModal('${p._id}')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100" title="Chỉnh sửa">
                 <i data-lucide="edit-2" class="w-4 h-4"></i>
               </button>
-              <button onclick="confirmDeleteProduct('${p._id}', '${p.name}')" class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50" title="Xóa món">
+              <button onclick="window.confirmDeleteProduct('${p._id}', '${p.name}')" class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50" title="Xóa món">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
               </button>
             </div>
@@ -284,13 +300,13 @@ async function loadCostingData() {
       `;
     }).join('');
 
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
   } catch (err) {
     showToast(err.message, 'error');
   }
 }
 
-async function viewCostBreakdown(productId) {
+window.viewCostBreakdown = async function(productId) {
   try {
     const p = await API.getProduct(productId);
     document.getElementById('breakdown-drink-name').textContent = `${p.image || '🥤'} ${p.name}`;
@@ -313,13 +329,13 @@ async function viewCostBreakdown(productId) {
     document.getElementById('breakdown-sale-price').textContent = formatMoney(p.price);
     document.getElementById('breakdown-profit').textContent = `${formatMoney(p.grossProfit)} (${p.profitMargin}%)`;
 
-    openModal('modal-cost-breakdown');
+    window.openModal('modal-cost-breakdown');
   } catch (err) {
     showToast(err.message, 'error');
   }
-}
+};
 
-function addRecipeRow(ingredientId = '', quantity = '') {
+export function addRecipeRow(ingredientId = '', quantity = '') {
   const container = document.getElementById('recipe-rows-container');
   const rowId = 'recipe-row-' + Math.random().toString(36).substring(2, 9);
   const row = document.createElement('div');
@@ -333,22 +349,33 @@ function addRecipeRow(ingredientId = '', quantity = '') {
   });
 
   row.innerHTML = `
-    <select class="recipe-ing-select flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white" onchange="updateLiveCostCalculation()">
+    <select class="recipe-ing-select flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white">
       ${optionsHtml}
     </select>
     <div class="flex items-center w-28">
-      <input type="number" min="0.01" step="any" value="${quantity}" placeholder="Định lượng" class="recipe-qty-input w-full px-2 py-1.5 border border-slate-200 rounded-l-lg focus:outline-none focus:ring-1 focus:ring-emerald-500" oninput="updateLiveCostCalculation()">
+      <input type="number" min="0.01" step="any" value="${quantity}" placeholder="Định lượng" class="recipe-qty-input w-full px-2 py-1.5 border border-slate-200 rounded-l-lg focus:outline-none focus:ring-1 focus:ring-emerald-500">
       <span class="recipe-unit-display px-2 py-1.5 bg-slate-100 text-slate-500 rounded-r-lg border border-l-0 border-slate-200">đ/v</span>
     </div>
     <span class="recipe-row-cost font-bold text-slate-700 w-20 text-right">0 đ</span>
-    <button type="button" onclick="document.getElementById('${rowId}').remove(); updateLiveCostCalculation();" class="p-1 text-slate-400 hover:text-rose-600 rounded">
+    <button type="button" class="btn-del-row p-1 text-slate-400 hover:text-rose-600 rounded">
       <i data-lucide="trash-2" class="w-4 h-4"></i>
     </button>
   `;
 
   container.appendChild(row);
   updateRecipeRowUnits(row);
-  lucide.createIcons();
+
+  row.querySelector('.recipe-ing-select').addEventListener('change', () => {
+    updateRecipeRowUnits(row);
+    updateLiveCostCalculation();
+  });
+  row.querySelector('.recipe-qty-input').addEventListener('input', updateLiveCostCalculation);
+  row.querySelector('.btn-del-row').addEventListener('click', () => {
+    row.remove();
+    updateLiveCostCalculation();
+  });
+
+  if (window.lucide) window.lucide.createIcons();
   updateLiveCostCalculation();
 }
 
@@ -361,19 +388,17 @@ function updateRecipeRowUnits(row) {
   }
 }
 
-function updateLiveCostCalculation() {
+export function updateLiveCostCalculation() {
   const rows = document.querySelectorAll('#recipe-rows-container > div');
   let totalCost = 0;
 
   rows.forEach(row => {
     const select = row.querySelector('.recipe-ing-select');
     const qtyInput = row.querySelector('.recipe-qty-input');
-    const unitSpan = row.querySelector('.recipe-unit-display');
     const costSpan = row.querySelector('.recipe-row-cost');
-
     const selectedOpt = select.options[select.selectedIndex];
+
     if (selectedOpt && selectedOpt.value) {
-      unitSpan.textContent = selectedOpt.dataset.unit || 'đ/v';
       const costPerUnit = Number(selectedOpt.dataset.cost) || 0;
       const qty = Number(qtyInput.value) || 0;
       const rowCost = Math.round(costPerUnit * qty);
@@ -393,10 +418,8 @@ function updateLiveCostCalculation() {
   document.getElementById('preview-margin').textContent = `${margin}%`;
 }
 
-async function openAddProductModal() {
-  if (!globalIngredients.length) {
-    globalIngredients = await API.getIngredients();
-  }
+window.openAddProductModal = async function() {
+  if (!globalIngredients.length) globalIngredients = await API.getIngredients();
 
   document.getElementById('modal-product-title').textContent = 'Thêm Món Nước Mới & Công Thức';
   document.getElementById('prod-id').value = '';
@@ -408,10 +431,10 @@ async function openAddProductModal() {
 
   addRecipeRow();
   addRecipeRow();
-  openModal('modal-product');
-}
+  window.openModal('modal-product');
+};
 
-async function openEditProductModal(productId) {
+window.openEditProductModal = async function(productId) {
   const p = await API.getProduct(productId);
   if (!p) return;
 
@@ -435,47 +458,11 @@ async function openEditProductModal(productId) {
     addRecipeRow();
   }
 
-  openModal('modal-product');
+  window.openModal('modal-product');
   updateLiveCostCalculation();
-}
+};
 
-async function handleSaveProduct(e) {
-  e.preventDefault();
-  const id = document.getElementById('prod-id').value;
-  const name = document.getElementById('prod-name').value.trim();
-  const category = document.getElementById('prod-category').value;
-  const price = Number(document.getElementById('prod-price').value);
-  const image = document.getElementById('prod-image').value.trim();
-  const description = document.getElementById('prod-description').value.trim();
-
-  const recipe = [];
-  const rows = document.querySelectorAll('#recipe-rows-container > div');
-  rows.forEach(row => {
-    const ingId = row.querySelector('.recipe-ing-select').value;
-    const qty = Number(row.querySelector('.recipe-qty-input').value);
-    if (ingId && qty > 0) {
-      recipe.push({ ingredient: ingId, quantity: qty });
-    }
-  });
-
-  const payload = { name, category, price, image, description, recipe };
-
-  try {
-    if (id) {
-      await API.updateProduct(id, payload);
-      showToast('Cập nhật món thành công!');
-    } else {
-      await API.createProduct(payload);
-      showToast('Đã thêm món nước mới vào Menu!');
-    }
-    closeModal('modal-product');
-    loadCostingData();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-async function confirmDeleteProduct(id, name) {
+window.confirmDeleteProduct = async function(id, name) {
   if (confirm(`Bạn có chắc chắn muốn xóa món "${name}" khỏi thực đơn không?`)) {
     try {
       await API.deleteProduct(id);
@@ -485,10 +472,10 @@ async function confirmDeleteProduct(id, name) {
       showToast(err.message, 'error');
     }
   }
-}
+};
 
 // 3. INVENTORY
-async function loadInventoryData() {
+export async function loadInventoryData() {
   try {
     const ingredients = await API.getIngredients();
     globalIngredients = ingredients;
@@ -498,13 +485,7 @@ async function loadInventoryData() {
 
     const tbody = document.getElementById('ingredients-table-body');
     if (!ingredients.length) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="8" class="text-center py-8 text-slate-400">
-            Chưa có nguyên liệu nào. Nhấn "Thêm Nguyên Liệu" để bắt đầu!
-          </td>
-        </tr>
-      `;
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400">Chưa có nguyên liệu nào. Nhấn "Thêm Nguyên Liệu" để bắt đầu!</td></tr>`;
     } else {
       tbody.innerHTML = ingredients.map(ing => {
         totalValue += ing.totalInventoryValue || 0;
@@ -525,15 +506,9 @@ async function loadInventoryData() {
             <td class="py-3 px-4 text-center">${statusBadge}</td>
             <td class="py-3 px-4 text-center">
               <div class="flex items-center justify-center gap-1.5">
-                <button onclick="openImportModal('${ing._id}', '${ing.name}', '${ing.unit}', ${ing.costPerUnit})" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold" title="Nhập kho">
-                  Nhập kho
-                </button>
-                <button onclick="openEditIngredientModal('${ing._id}')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100" title="Chỉnh sửa">
-                  <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
-                </button>
-                <button onclick="confirmDeleteIngredient('${ing._id}', '${ing.name}')" class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50" title="Xóa">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                </button>
+                <button onclick="window.openImportModal('${ing._id}', '${ing.name}', '${ing.unit}', ${ing.costPerUnit})" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">Nhập kho</button>
+                <button onclick="window.openEditIngredientModal('${ing._id}')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100" title="Chỉnh sửa"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+                <button onclick="window.confirmDeleteIngredient('${ing._id}', '${ing.name}')" class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50" title="Xóa"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
               </div>
             </td>
           </tr>
@@ -544,22 +519,13 @@ async function loadInventoryData() {
     document.getElementById('inv-total-value').textContent = formatMoney(totalValue);
     document.getElementById('inv-total-items').textContent = ingredients.length;
     document.getElementById('inv-low-stock-count').textContent = lowStockCount;
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
   } catch (err) {
     showToast(err.message, 'error');
   }
 }
 
-function filterIngredientsTable() {
-  const query = document.getElementById('search-ingredient-input').value.toLowerCase();
-  const rows = document.querySelectorAll('#ingredients-table-body tr');
-  rows.forEach(row => {
-    const text = row.textContent.toLowerCase();
-    row.style.display = text.includes(query) ? '' : 'none';
-  });
-}
-
-function openAddIngredientModal() {
+window.openAddIngredientModal = function() {
   document.getElementById('modal-ingredient-title').textContent = 'Thêm Nguyên Liệu Mới';
   document.getElementById('ing-id').value = '';
   document.getElementById('ing-name').value = '';
@@ -568,10 +534,10 @@ function openAddIngredientModal() {
   document.getElementById('ing-stock').value = '0';
   document.getElementById('ing-min-alert').value = '100';
   document.getElementById('ing-notes').value = '';
-  openModal('modal-ingredient');
-}
+  window.openModal('modal-ingredient');
+};
 
-function openEditIngredientModal(id) {
+window.openEditIngredientModal = function(id) {
   const ing = globalIngredients.find(i => i._id === id);
   if (!ing) return;
 
@@ -584,38 +550,10 @@ function openEditIngredientModal(id) {
   document.getElementById('ing-stock').value = ing.stockQuantity;
   document.getElementById('ing-min-alert').value = ing.minStockAlert;
   document.getElementById('ing-notes').value = ing.notes || '';
-  openModal('modal-ingredient');
-}
+  window.openModal('modal-ingredient');
+};
 
-async function handleSaveIngredient(e) {
-  e.preventDefault();
-  const id = document.getElementById('ing-id').value;
-  const name = document.getElementById('ing-name').value.trim();
-  const category = document.getElementById('ing-category').value;
-  const unit = document.getElementById('ing-unit').value.trim();
-  const costPerUnit = Number(document.getElementById('ing-cost').value);
-  const stockQuantity = Number(document.getElementById('ing-stock').value);
-  const minStockAlert = Number(document.getElementById('ing-min-alert').value);
-  const notes = document.getElementById('ing-notes').value.trim();
-
-  const payload = { name, category, unit, costPerUnit, stockQuantity, minStockAlert, notes };
-
-  try {
-    if (id) {
-      await API.updateIngredient(id, payload);
-      showToast('Đã cập nhật thông tin nguyên liệu!');
-    } else {
-      await API.createIngredient(payload);
-      showToast('Đã thêm nguyên liệu mới!');
-    }
-    closeModal('modal-ingredient');
-    loadInventoryData();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-function openImportModal(id, name, unit, currentCost) {
+window.openImportModal = function(id, name, unit, currentCost) {
   document.getElementById('import-ing-id').value = id;
   document.getElementById('import-stock-subtitle').textContent = `Nguyên liệu: ${name} (Đang có đơn giá chuẩn: ${formatMoney(currentCost)}/${unit})`;
   document.getElementById('import-unit-label').textContent = `(${unit})`;
@@ -623,41 +561,15 @@ function openImportModal(id, name, unit, currentCost) {
   document.getElementById('import-qty').value = '';
   document.getElementById('import-total-cost').value = '';
   document.getElementById('import-notes').value = '';
-  openModal('modal-import-stock');
-}
+  window.openModal('modal-import-stock');
+};
 
-function quickImportByName(name) {
+window.quickImportByName = function(name) {
   const ing = globalIngredients.find(i => i.name === name);
-  if (ing) openImportModal(ing._id, ing.name, ing.unit, ing.costPerUnit);
-}
+  if (ing) window.openImportModal(ing._id, ing.name, ing.unit, ing.costPerUnit);
+};
 
-function calculateImportTotal() {
-  const qty = Number(document.getElementById('import-qty').value) || 0;
-  const unitCost = Number(document.getElementById('import-unit-cost').value) || 0;
-  if (qty > 0 && unitCost > 0) {
-    document.getElementById('import-total-cost').value = Math.round(qty * unitCost);
-  }
-}
-
-async function handleSaveImportStock(e) {
-  e.preventDefault();
-  const id = document.getElementById('import-ing-id').value;
-  const quantity = Number(document.getElementById('import-qty').value);
-  const costPerUnit = Number(document.getElementById('import-unit-cost').value);
-  const totalCost = Number(document.getElementById('import-total-cost').value);
-  const notes = document.getElementById('import-notes').value.trim();
-
-  try {
-    await API.importIngredient(id, { quantity, costPerUnit, totalCost, notes });
-    showToast('Nhập kho thành công & đã tự động ghi sổ Chi!');
-    closeModal('modal-import-stock');
-    loadInventoryData();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
-async function confirmDeleteIngredient(id, name) {
+window.confirmDeleteIngredient = async function(id, name) {
   if (confirm(`Bạn có chắc muốn xóa nguyên liệu "${name}" không?`)) {
     try {
       await API.deleteIngredient(id);
@@ -667,10 +579,10 @@ async function confirmDeleteIngredient(id, name) {
       showToast(err.message, 'error');
     }
   }
-}
+};
 
 // 4. POS
-async function loadPosData() {
+export async function loadPosData() {
   try {
     const products = await API.getProducts();
     globalProducts = products;
@@ -678,14 +590,18 @@ async function loadPosData() {
     const categories = ['Tất cả', ...new Set(products.map(p => p.category))];
     const catContainer = document.getElementById('pos-category-filters');
     catContainer.innerHTML = categories.map((c, i) => `
-      <button onclick="filterPosByCategory('${c}')" class="pos-cat-btn ${i === 0 ? 'active bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap" data-category="${c}">
+      <button class="pos-cat-btn ${i === 0 ? 'active bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap" data-category="${c}">
         ${c}
       </button>
     `).join('');
 
+    catContainer.querySelectorAll('.pos-cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => filterPosByCategory(btn.dataset.category));
+    });
+
     renderPosProductList(products);
     updateCartUI();
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -701,7 +617,7 @@ function renderPosProductList(products) {
   container.innerHTML = products.map(p => {
     const isOutOfStock = p.maxCupsPossible <= 0;
     return `
-      <div onclick="${isOutOfStock ? `showToast('Món này đã hết nguyên liệu để pha chế!', 'warning')` : `addToCart('${p._id}')`}" class="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden ${isOutOfStock ? 'opacity-60 grayscale' : ''}">
+      <div onclick="${isOutOfStock ? `window.showToast('Món này đã hết nguyên liệu để pha chế!', 'warning')` : `window.addToCart('${p._id}')`}" class="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-sm hover:shadow-md cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden ${isOutOfStock ? 'opacity-60 grayscale' : ''}">
         <div>
           <div class="flex items-start justify-between">
             <span class="text-3xl">${p.image || '🥤'}</span>
@@ -719,7 +635,7 @@ function renderPosProductList(products) {
       </div>
     `;
   }).join('');
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function filterPosByCategory(category) {
@@ -737,13 +653,7 @@ function filterPosByCategory(category) {
   else renderPosProductList(globalProducts.filter(p => p.category === category));
 }
 
-function filterPosProducts() {
-  const query = document.getElementById('pos-search-input').value.toLowerCase();
-  const filtered = globalProducts.filter(p => p.name.toLowerCase().includes(query) || p.category.toLowerCase().includes(query));
-  renderPosProductList(filtered);
-}
-
-function addToCart(productId) {
+window.addToCart = function(productId) {
   const product = globalProducts.find(p => p._id === productId);
   if (!product) return;
 
@@ -759,9 +669,9 @@ function addToCart(productId) {
   }
 
   updateCartUI();
-}
+};
 
-function updateCartItemQty(productId, delta) {
+window.updateCartItemQty = function(productId, delta) {
   const itemIndex = globalCart.findIndex(item => item.product._id === productId);
   if (itemIndex > -1) {
     const item = globalCart[itemIndex];
@@ -777,12 +687,7 @@ function updateCartItemQty(productId, delta) {
     }
   }
   updateCartUI();
-}
-
-function clearCart() {
-  globalCart = [];
-  updateCartUI();
-}
+};
 
 function updateCartUI() {
   const cartContainer = document.getElementById('pos-cart-items');
@@ -798,7 +703,7 @@ function updateCartUI() {
     document.getElementById('pos-cart-total-cost').textContent = '0 đ';
     document.getElementById('pos-cart-estimated-profit').textContent = '0 đ';
     document.getElementById('pos-cart-total-amount').textContent = '0 đ';
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
     return;
   }
 
@@ -821,9 +726,9 @@ function updateCartUI() {
           <span class="font-bold text-emerald-700">${formatMoney(subtotal)}</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <button onclick="updateCartItemQty('${item.product._id}', -1)" class="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100">-</button>
+          <button onclick="window.updateCartItemQty('${item.product._id}', -1)" class="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100">-</button>
           <span class="font-extrabold text-slate-900 px-1">${item.quantity}</span>
-          <button onclick="updateCartItemQty('${item.product._id}', 1)" class="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100">+</button>
+          <button onclick="window.updateCartItemQty('${item.product._id}', 1)" class="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100">+</button>
         </div>
       </div>
     `;
@@ -834,48 +739,11 @@ function updateCartUI() {
   document.getElementById('pos-cart-total-cost').textContent = formatMoney(totalCost);
   document.getElementById('pos-cart-estimated-profit').textContent = formatMoney(grossProfit);
   document.getElementById('pos-cart-total-amount').textContent = formatMoney(totalAmount);
-  lucide.createIcons();
-}
-
-async function submitPosOrder() {
-  if (!globalCart.length) {
-    showToast('Vui lòng chọn ít nhất 1 món vào đơn hàng!', 'warning');
-    return;
-  }
-
-  const paymentMethod = document.querySelector('input[name="pos-payment"]:checked').value;
-  const items = globalCart.map(i => ({
-    productId: i.product._id,
-    quantity: i.quantity
-  }));
-
-  const btn = document.getElementById('btn-submit-order');
-  btn.disabled = true;
-  btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Đang trừ kho & lưu đơn...`;
-
-  try {
-    const res = await API.createOrder({ items, paymentMethod });
-    showToast('Tạo đơn thành công! Đã tự động trừ kho nguyên liệu.');
-
-    if (res.stockWarnings && res.stockWarnings.length > 0) {
-      res.stockWarnings.forEach(w => showToast(w, 'warning'));
-    }
-
-    clearCart();
-    await loadPosData();
-  } catch (err) {
-    showToast(err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Hoàn Tất & Trừ Kho Tự Động`;
-    lucide.createIcons();
-  }
+  if (window.lucide) window.lucide.createIcons();
 }
 
 // 5. CASHFLOW
-let currentTxTypeFilter = 'all';
-
-async function loadCashflowData(type = currentTxTypeFilter) {
+export async function loadCashflowData(type = currentTxTypeFilter) {
   currentTxTypeFilter = type;
   const params = {};
   if (type !== 'all') params.type = type;
@@ -914,7 +782,7 @@ async function loadCashflowData(type = currentTxTypeFilter) {
             <td class="py-3 px-4 text-slate-600 text-xs">${t.description || '-'}</td>
             <td class="py-3 px-4 text-right ${amountColor}">${isIncome ? '+' : '-'}${formatMoney(t.amount)}</td>
             <td class="py-3 px-4 text-center">
-              <button onclick="confirmDeleteTransaction('${t._id}')" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50" title="Xóa phiếu">
+              <button onclick="window.confirmDeleteTransaction('${t._id}')" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50" title="Xóa phiếu">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               </button>
             </td>
@@ -923,24 +791,23 @@ async function loadCashflowData(type = currentTxTypeFilter) {
       }).join('');
     }
 
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
   } catch (err) {
     showToast(err.message, 'error');
   }
 }
 
-function filterTransactions(type) {
-  document.querySelectorAll('.tx-filter-btn').forEach(btn => {
-    if (btn.dataset.type === type) {
-      btn.classList.add('active', 'bg-slate-800', 'text-white');
-      btn.classList.remove('bg-slate-100', 'text-slate-600');
-    } else {
-      btn.classList.remove('active', 'bg-slate-800', 'text-white');
-      btn.classList.add('bg-slate-100', 'text-slate-600');
+window.confirmDeleteTransaction = async function(id) {
+  if (confirm('Bạn có chắc muốn xóa phiếu thu/chi này không?')) {
+    try {
+      await API.deleteTransaction(id);
+      showToast('Đã xóa phiếu thành công!');
+      loadCashflowData();
+    } catch (err) {
+      showToast(err.message, 'error');
     }
-  });
-  loadCashflowData(type);
-}
+  }
+};
 
 function updateTxCategories() {
   const type = document.querySelector('input[name="tx-type"]:checked').value;
@@ -964,56 +831,199 @@ function updateTxCategories() {
   }
 }
 
-function openAddTransactionModal() {
-  document.getElementById('tx-amount').value = '';
-  document.getElementById('tx-desc').value = '';
-  document.getElementById('tx-date').value = new Date().toISOString().slice(0, 10);
-  updateTxCategories();
-  openModal('modal-transaction');
-}
+// Setup Event Listeners
+document.addEventListener('DOMContentLoaded', async () => {
+  if (window.lucide) window.lucide.createIcons();
 
-async function handleSaveTransaction(e) {
-  e.preventDefault();
-  const type = document.querySelector('input[name="tx-type"]:checked').value;
-  const category = document.getElementById('tx-category').value;
-  const amount = Number(document.getElementById('tx-amount').value);
-  const description = document.getElementById('tx-desc').value.trim();
-  const date = document.getElementById('tx-date').value;
+  // Navigation click listeners
+  const tabNames = ['dashboard', 'costing', 'inventory', 'pos', 'cashflow'];
+  tabNames.forEach(t => {
+    const btn = document.getElementById(`nav-${t}`);
+    const mBtn = document.getElementById(`m-nav-${t}`);
+    if (btn) btn.addEventListener('click', () => switchTab(t));
+    if (mBtn) mBtn.addEventListener('click', () => switchTab(t));
+  });
 
-  try {
-    await API.createTransaction({ type, category, amount, description, date });
-    showToast('Đã tạo phiếu thu/chi thành công!');
-    closeModal('modal-transaction');
-    loadCashflowData();
-  } catch (err) {
-    showToast(err.message, 'error');
+  // Period buttons
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadDashboard(btn.dataset.period));
+  });
+
+  // Search inputs
+  const ingSearch = document.getElementById('search-ingredient-input');
+  if (ingSearch) {
+    ingSearch.addEventListener('keyup', () => {
+      const q = ingSearch.value.toLowerCase();
+      document.querySelectorAll('#ingredients-table-body tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
   }
-}
 
-async function confirmDeleteTransaction(id) {
-  if (confirm('Bạn có chắc muốn xóa phiếu thu/chi này không?')) {
+  const posSearch = document.getElementById('pos-search-input');
+  if (posSearch) {
+    posSearch.addEventListener('keyup', () => {
+      const q = posSearch.value.toLowerCase();
+      renderPosProductList(globalProducts.filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)));
+    });
+  }
+
+  // Buttons open modal
+  document.getElementById('btn-open-add-product')?.addEventListener('click', window.openAddProductModal);
+  document.getElementById('btn-open-add-ingredient')?.addEventListener('click', window.openAddIngredientModal);
+  document.getElementById('btn-add-recipe-row')?.addEventListener('click', () => addRecipeRow());
+  document.getElementById('prod-price')?.addEventListener('input', updateLiveCostCalculation);
+
+  document.getElementById('btn-clear-cart')?.addEventListener('click', () => {
+    globalCart = [];
+    updateCartUI();
+  });
+
+  document.getElementById('btn-submit-order')?.addEventListener('click', async () => {
+    if (!globalCart.length) return showToast('Giỏ hàng trống!', 'warning');
+    const paymentMethod = document.querySelector('input[name="pos-payment"]:checked').value;
+    const items = globalCart.map(i => ({ productId: i.product._id, quantity: i.quantity }));
     try {
-      await API.deleteTransaction(id);
-      showToast('Đã xóa phiếu thành công!');
+      const res = await API.createOrder({ items, paymentMethod });
+      showToast('Tạo đơn thành công! Đã trừ tồn kho.');
+      if (res.stockWarnings) res.stockWarnings.forEach(w => showToast(w, 'warning'));
+      globalCart = [];
+      updateCartUI();
+      await loadPosData();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  });
+
+  // Forms
+  document.getElementById('form-ingredient')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('ing-id').value;
+    const name = document.getElementById('ing-name').value.trim();
+    const category = document.getElementById('ing-category').value;
+    const unit = document.getElementById('ing-unit').value.trim();
+    const costPerUnit = Number(document.getElementById('ing-cost').value);
+    const stockQuantity = Number(document.getElementById('ing-stock').value);
+    const minStockAlert = Number(document.getElementById('ing-min-alert').value);
+    const notes = document.getElementById('ing-notes').value.trim();
+    const payload = { name, category, unit, costPerUnit, stockQuantity, minStockAlert, notes };
+    try {
+      if (id) await API.updateIngredient(id, payload);
+      else await API.createIngredient(payload);
+      showToast('Lưu nguyên liệu thành công!');
+      window.closeModal('modal-ingredient');
+      loadInventoryData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('form-import-stock')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('import-ing-id').value;
+    const quantity = Number(document.getElementById('import-qty').value);
+    const costPerUnit = Number(document.getElementById('import-unit-cost').value);
+    const totalCost = Number(document.getElementById('import-total-cost').value);
+    const notes = document.getElementById('import-notes').value.trim();
+    try {
+      await API.importIngredient(id, { quantity, costPerUnit, totalCost, notes });
+      showToast('Nhập kho thành công!');
+      window.closeModal('modal-import-stock');
+      loadInventoryData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('import-qty')?.addEventListener('input', () => {
+    const q = Number(document.getElementById('import-qty').value) || 0;
+    const c = Number(document.getElementById('import-unit-cost').value) || 0;
+    if (q > 0 && c > 0) document.getElementById('import-total-cost').value = Math.round(q * c);
+  });
+  document.getElementById('import-unit-cost')?.addEventListener('input', () => {
+    const q = Number(document.getElementById('import-qty').value) || 0;
+    const c = Number(document.getElementById('import-unit-cost').value) || 0;
+    if (q > 0 && c > 0) document.getElementById('import-total-cost').value = Math.round(q * c);
+  });
+
+  document.getElementById('form-product')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('prod-id').value;
+    const name = document.getElementById('prod-name').value.trim();
+    const category = document.getElementById('prod-category').value;
+    const price = Number(document.getElementById('prod-price').value);
+    const image = document.getElementById('prod-image').value.trim();
+    const description = document.getElementById('prod-description').value.trim();
+
+    const recipe = [];
+    document.querySelectorAll('#recipe-rows-container > div').forEach(row => {
+      const ingId = row.querySelector('.recipe-ing-select').value;
+      const qty = Number(row.querySelector('.recipe-qty-input').value);
+      if (ingId && qty > 0) recipe.push({ ingredient: ingId, quantity: qty });
+    });
+
+    const payload = { name, category, price, image, description, recipe };
+    try {
+      if (id) await API.updateProduct(id, payload);
+      else await API.createProduct(payload);
+      showToast('Lưu món nước thành công!');
+      window.closeModal('modal-product');
+      loadCostingData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  document.getElementById('btn-open-add-transaction')?.addEventListener('click', () => {
+    document.getElementById('tx-amount').value = '';
+    document.getElementById('tx-desc').value = '';
+    document.getElementById('tx-date').value = new Date().toISOString().slice(0, 10);
+    updateTxCategories();
+    window.openModal('modal-transaction');
+  });
+
+  document.querySelectorAll('input[name="tx-type"]').forEach(r => {
+    r.addEventListener('change', updateTxCategories);
+  });
+
+  document.getElementById('form-transaction')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const type = document.querySelector('input[name="tx-type"]:checked').value;
+    const category = document.getElementById('tx-category').value;
+    const amount = Number(document.getElementById('tx-amount').value);
+    const description = document.getElementById('tx-desc').value.trim();
+    const date = document.getElementById('tx-date').value;
+    try {
+      await API.createTransaction({ type, category, amount, description, date });
+      showToast('Tạo phiếu thu chi thành công!');
+      window.closeModal('modal-transaction');
       loadCashflowData();
     } catch (err) {
       showToast(err.message, 'error');
     }
-  }
-}
+  });
 
-// Startup
-document.addEventListener('DOMContentLoaded', async () => {
-  lucide.createIcons();
+  document.querySelectorAll('.tx-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tx-filter-btn').forEach(b => {
+        if (b === btn) {
+          b.classList.add('active', 'bg-slate-800', 'text-white');
+          b.classList.remove('bg-slate-100', 'text-slate-600');
+        } else {
+          b.classList.remove('active', 'bg-slate-800', 'text-white');
+          b.classList.add('bg-slate-100', 'text-slate-600');
+        }
+      });
+      loadCashflowData(btn.dataset.type);
+    });
+  });
 
+  // Health check
   const health = await API.checkHealth();
   const badge = document.getElementById('db-status-badge');
   if (health.database === 'connected') {
     badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> <span>MongoDB Atlas Online</span>`;
     badge.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
-  } else {
-    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> <span>Đang kết nối Atlas...</span>`;
-    badge.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200';
   }
 
   loadDashboard('30days');

@@ -1,96 +1,121 @@
-# ☕ CafeProfit - Webapp Quản Lý Lợi Nhuận & Giá Thành Quán Nước Uống (Hỗ Trợ GitHub Pages)
+# ☕ CafeProfit - Webapp Quản Lý Lợi Nhuận & Giá Thành Quán Nước (Vite Frontend + Express Backend + MongoDB Atlas)
 
-Ứng dụng web quản lý quán cafe / trà sữa / nước uống **chạy 100% trực tiếp trên GitHub Pages**. Tự động lưu trữ dữ liệu an toàn trên trình duyệt (LocalStorage), hỗ trợ xuất/nhập file sao lưu (.JSON), tính giá thành định lượng 1 ly nước (BOM) và bán hàng trừ kho tự động.
+Hệ thống quản lý quán nước uống / cafe / trà sữa chuyên nghiệp được tách biệt thành 2 phần rõ rệt: **Frontend (Vite + Tailwind CSS)** và **Backend (Express + MongoDB Atlas)**, sẵn sàng để triển khai lên **Vercel** với tính năng Serverless tự động kết nối cơ sở dữ liệu đám mây.
 
 ---
 
-## 🌟 Tính Năng Nổi Bật
+## 🌟 Tính Năng Chính
 
-1. **Menu & Định Lượng Giá Thành 1 Ly (Recipe & BOM Costing)**:
-   - Tự động tính **Giá vốn nguyên liệu (COGS)** cho từng ly nước dựa trên đơn giá nguyên liệu.
-   - Hiển thị trực quan **Lợi nhuận gộp** và **% Biên lợi nhuận (Margin)** trên mỗi ly.
+1. **Định Lượng & Giá Thành 1 Ly Nước (BOM Costing)**:
+   - Tự động tính chi phí nguyên vật liệu đầu vào (COGS) theo giá vốn thị trường.
+   - Tính toán lãi gộp và % tỷ suất lợi nhuận (Margin) theo thời gian thực.
    - Tự động tính **Số ly tối đa có thể pha** dựa trên số lượng tồn kho nguyên liệu hiện có.
-   - Bảng phân tích chi tiết chi phí từng gram, mililit nguyên liệu cấu thành 1 ly nước.
+   - Modal phân tích chi tiết chi phí từng gram, mililit cấu thành 1 ly nước.
 
-2. **Quản Lý Nguyên Liệu Đầu Vào & Tồn Kho (Inventory)**:
-   - Danh mục 11 nguyên liệu thực tế (Cà phê Robusta mộc, Sữa đặc, Sữa tươi Dalat Milk, Trà đen, Trà lài, Siro đào, Đào ngâm, Trân châu, Đường, Ly nhựa, Ống hút...).
-   - Đơn vị tính cơ sở (`g`, `ml`, `cái`, `miếng`).
-   - Cảnh báo tồn kho khi xuống dưới mức an toàn (Low stock alert).
-   - **Phiếu Nhập Kho thông minh**: Tự động tính lại giá vốn bình quân gia quyền và tự động tạo phiếu Chi vào Sổ Thu Chi.
+2. **Quản Lý Nguyên Liệu Đầu Vào & Tồn Kho (Inventory Management)**:
+   - Danh mục 11 nguyên liệu thực tế (Cà phê hạt, sữa đặc, sữa tươi, trà đen, trà lài, siro đào, đào miếng, trân châu, đường, ly, ống hút...).
+   - Đơn vị tính cơ sở chuẩn (`g`, `ml`, `cái`, `miếng`).
+   - Cảnh báo sắp hết kho (Low stock alert).
+   - **Phiếu Nhập Kho thông minh**: Tự động tính giá vốn bình quân gia quyền và tự động tạo phiếu Chi trong sổ quỹ.
 
-3. **Bán Hàng Nhanh (POS) & Trừ Kho Tự Động**:
+3. **Bán Hàng Nhanh (POS) & Tự Động Trừ Kho**:
    - Giao diện bán hàng trực quan, phân loại danh mục, tìm kiếm nhanh.
-   - Tự động tính doanh thu, giá vốn và lãi gộp ngay trên giỏ hàng trước khi thanh toán.
-   - Khi bấm **Hoàn tất đơn**, hệ thống **tự động trừ số lượng nguyên liệu trong kho** theo đúng công thức định lượng của từng món.
+   - Xem trước giá vốn và tiền lời của đơn hàng ngay trên giỏ hàng.
+   - Bấm **Hoàn tất đơn**: Hệ thống **tự động trừ kho nguyên liệu** theo đúng công thức của từng món.
    - Tự động ghi nhận khoản Thu bán hàng vào Sổ Quỹ.
 
-4. **Sổ Quỹ Thu - Chi (Cashflow Ledger)**:
-   - Tự động ghi nhận dòng tiền Thu từ đơn hàng và Chi từ nhập kho.
-   - Cho phép tạo các khoản Thu / Chi vận hành thủ công (Mặt bằng, Điện nước, Lương nhân viên, Đá lạnh, Sửa chữa máy móc...).
-   - Báo cáo tổng thu, tổng chi và số dư quỹ thực tế.
+4. **Sổ Quỹ Thu - Chi (Cashflow)**:
+   - Ghi nhận dòng tiền tự động từ đơn bán và nhập nguyên liệu.
+   - Tạo phiếu thu/chi thủ công cho chi phí vận hành (Mặt bằng, Điện nước, Lương nhân viên, Đá lạnh...).
+   - Báo cáo Tổng thu, Tổng chi và Số dư quỹ thực tế.
 
-5. **Báo Cáo & Lợi Nhuận (Analytics Dashboard)**:
-   - Biểu đồ xu hướng Doanh thu vs Giá vốn nguyên liệu vs Lợi nhuận gộp (Chart.js).
-   - Thống kê linh hoạt: Hôm nay, 7 ngày qua, 30 ngày qua hoặc Toàn bộ.
-   - Thống kê Top món bán chạy nhất.
-
-6. **Sao Lưu & Phục Hồi Dữ Liệu (Backup & Restore)**:
-   - Nút **"Tải về file sao lưu (.JSON)"**: Lưu toàn bộ nguyên liệu, menu, đơn hàng về máy tính.
-   - Nút **"Nhập dữ liệu từ file (.JSON)"**: Đồng bộ sang máy tính hoặc điện thoại khác dễ dàng.
-   - Nút **"Khôi phục dữ liệu mẫu ban đầu"** để thiết lập lại quán cafe mẫu bất kỳ lúc nào.
+5. **Báo Cáo & Thống Kê Hoạt Động (Dashboard)**:
+   - Biểu đồ xu hướng Doanh thu vs Giá vốn vs Lợi nhuận (Chart.js).
+   - Bộ lọc linh hoạt: Hôm nay, 7 ngày qua, 30 ngày qua hoặc Toàn bộ.
+   - Bảng xếp hạng Top món bán chạy nhất và cảnh báo tồn kho thấp.
 
 ---
 
-## 🚀 Hướng Dẫn Đưa Lên GitHub & Kích Hoạt GitHub Pages
-
-### Bước 1: Đẩy mã nguồn lên GitHub
-Mở Terminal / PowerShell tại thư mục dự án và chạy:
-```bash
-# 1. Thêm toàn bộ file vào git
-git add .
-
-# 2. Tạo commit
-git commit -m "feat: Khoi tao webapp quan ly loi nhuan quan nuoc chay truc tiep tren GitHub Pages"
-
-# 3. Tạo repo mới trên GitHub (https://github.com/new), sau đó liên kết:
-git branch -M main
-git remote add origin https://github.com/<tai-khoan-cua-ban>/<ten-repo>.git
-
-# 4. Đẩy code lên GitHub
-git push -u origin main
-```
-
----
-
-### Bước 2: Cài đặt GitHub Pages để chạy Webapp
-
-1. Trên trình duyệt, vào trang **Repository** của bạn trên GitHub.
-2. Bấm vào tab **Settings** (ở thanh menu trên cùng của repo).
-3. Ở menu bên trái, tìm và bấm vào mục **Pages** (dưới phần *Code and automation*).
-4. Tại mục **Build and deployment**:
-   - **Source**: Chọn `Deploy from a branch`.
-   - **Branch**: Chọn nhánh `main` và thư mục `/(root)`.
-   - Bấm nút **Save**.
-5. Đợi khoảng 1 - 2 phút, GitHub sẽ cung cấp đường link website của bạn dạng:
-   👉 **`https://<tai-khoan-cua-ban>.github.io/<ten-repo>/`**
-6. Bạn chỉ cần click vào link đó là webapp sẽ chạy ngay lập tức trên máy tính hoặc điện thoại!
-
----
-
-## 📁 Cấu Trúc Thư Mục Chuẩn Cho GitHub Pages
+## 📁 Cấu Trúc Dự Án (2 Phần Riêng Biệt)
 
 ```
 QL_cafe/
-├── index.html                     # Trang chủ webapp (GitHub Pages nhận diện tự động)
-├── css/
-│   └── style.css                  # Custom styling & hiệu ứng
-├── js/
-│   ├── store.js                   # Engine lưu trữ dữ liệu trình duyệt (LocalStorage)
-│   ├── api.js                     # Tầng API giao tiếp nội bộ
-│   └── app.js                     # Xử lý giao diện người dùng, POS, BOM & Chart.js
-├── README.md                      # Hướng dẫn chi tiết
-└── .gitignore                     # Bỏ qua các file bảo mật
+├── backend/                       # PHẦN BACKEND (Node.js, Express, MongoDB Atlas)
+│   ├── src/
+│   │   ├── config/db.js           # Kết nối MongoDB Atlas
+│   │   ├── models/                # Schema Mongoose (Ingredient, Product, Order, Transaction)
+│   │   ├── routes/                # API Endpoints
+│   │   └── utils/seeder.js        # Script nạp dữ liệu mẫu
+│   ├── server.js                  # Máy chủ Express chạy local (Port 5000)
+│   ├── package.json
+│   └── .env                       # MONGODB_URI
+├── frontend/                      # PHẦN FRONTEND (Vite + Tailwind CSS + HTML/JS)
+│   ├── src/
+│   │   ├── api.js                 # Gọi REST API (hỗ trợ proxy Vite dev server)
+│   │   ├── main.js                # Xử lý toàn bộ logic giao diện, POS, Chart.js
+│   │   └── style.css              # Custom styling & hiệu ứng
+│   ├── index.html                 # Giao diện chính
+│   ├── package.json               # Vite
+│   └── vite.config.js             # Cấu hình proxy /api -> http://localhost:5000
+├── api/
+│   └── index.js                   # Cầu nối Vercel Serverless Function
+├── vercel.json                    # Cấu hình Vercel build Vite & Serverless API
+├── package.json                   # Root scripts điều phối
+└── README.md
 ```
+
+---
+
+## 💻 Hướng Dẫn Chạy Cục Bộ (Local Development)
+
+### 1. Cài đặt các gói phụ thuộc
+Tại thư mục gốc dự án:
+```bash
+npm install
+cd backend && npm install
+cd ../frontend && npm install
+cd ..
+```
+
+### 2. Nạp dữ liệu mẫu vào MongoDB Atlas
+```bash
+npm run seed
+```
+
+### 3. Khởi động 2 phần (Frontend & Backend)
+Mở 2 cửa sổ Terminal:
+- **Cửa sổ 1 (Backend)**:
+  ```bash
+  npm run dev:backend
+  ```
+  *(Backend chạy tại `http://localhost:5000`)*
+
+- **Cửa sổ 2 (Frontend Vite)**:
+  ```bash
+  npm run dev:frontend
+  ```
+  *(Frontend Vite mở tại `http://localhost:3000`)*
+
+---
+
+## 🚀 Hướng Dẫn Triển Khai Lên Vercel (1-Click Deploy)
+
+### Bước 1: Đẩy mã nguồn lên GitHub
+```bash
+git add .
+git commit -m "feat: Tách 2 phần Vite frontend và Express backend chuẩn Vercel"
+git push -u origin main
+```
+
+### Bước 2: Import dự án vào Vercel
+1. Đăng nhập vào [Vercel.com](https://vercel.com).
+2. Nhấn nút **Add New...** -> **Project** -> Chọn Repository GitHub của bạn rồi bấm **Import**.
+3. Tại phần **Environment Variables**, thêm biến sau:
+   - **Key**: `MONGODB_URI`
+   - **Value**: `mongodb+srv://towavnitminhnhan_db_user:GSbwCY6zDGlOPRFL@quanlycafe.vzwbzgw.mongodb.net/quanly_cafe?retryWrites=true&w=majority`
+   - Nhấn **Add**.
+4. Nhấn nút **Deploy**.
+5. Vercel sẽ tự động build Vite frontend và kích hoạt Serverless API kết nối trực tiếp với MongoDB Atlas của bạn!
 
 ---
 
