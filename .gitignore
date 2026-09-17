@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment variables (chứa password MongoDB)
+.env
+.env.local
+.env.production
+atlas-credentials.env
+
+# Vercel build folder
+.vercel/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
