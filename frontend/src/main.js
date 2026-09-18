@@ -495,9 +495,19 @@ export async function loadInventoryData() {
           ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 badge-low-stock">Cảnh báo: Sắp hết</span>`
           : `<span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">Dồi dào</span>`;
 
+        const packageSpecHtml = (ing.purchaseUnit && ing.conversionRate > 1)
+          ? `<div class="text-[11px] text-slate-500 font-normal mt-1 flex items-center gap-1.5">
+              <span class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200/80 font-medium">📦 1 ${ing.purchaseUnit} = ${formatNumber(ing.conversionRate)} ${ing.unit}</span>
+              <span class="text-slate-400">(${formatMoney(ing.purchasePrice || Math.round(ing.costPerUnit * ing.conversionRate))})</span>
+            </div>`
+          : '';
+
         return `
           <tr class="hover:bg-slate-50/80 transition-colors">
-            <td class="py-3 px-4 font-bold text-slate-900">${ing.name}</td>
+            <td class="py-3 px-4">
+              <div class="font-bold text-slate-900">${ing.name}</div>
+              ${packageSpecHtml}
+            </td>
             <td class="py-3 px-4 text-slate-600"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-xs">${ing.category}</span></td>
             <td class="py-3 px-4 text-slate-600 font-semibold">${ing.unit}</td>
             <td class="py-3 px-4 text-right font-medium text-slate-700">${formatMoney(ing.costPerUnit)} / ${ing.unit}</td>
@@ -506,7 +516,7 @@ export async function loadInventoryData() {
             <td class="py-3 px-4 text-center">${statusBadge}</td>
             <td class="py-3 px-4 text-center">
               <div class="flex items-center justify-center gap-1.5">
-                <button onclick="window.openImportModal('${ing._id}', '${ing.name}', '${ing.unit}', ${ing.costPerUnit})" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">Nhập kho</button>
+                <button onclick="window.openImportModal('${ing._id}', '${ing.name}', '${ing.unit}', ${ing.costPerUnit})" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-all shadow-2xs">Nhập kho</button>
                 <button onclick="window.openEditIngredientModal('${ing._id}')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100" title="Chỉnh sửa"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
                 <button onclick="window.confirmDeleteIngredient('${ing._id}', '${ing.name}')" class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50" title="Xóa"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
               </div>
@@ -525,15 +535,130 @@ export async function loadInventoryData() {
   }
 }
 
+// Áp dụng Preset gợi ý mẫu nguyên liệu F&B phổ biến
+window.applyPreset = function(presetKey) {
+  const presets = {
+    cafe: {
+      name: 'Cà phê hạt Robusta mộc',
+      unit: 'g',
+      category: 'Cà phê',
+      purchaseUnit: 'Bao',
+      conversionRate: 1000,
+      purchasePrice: 260000,
+      notes: 'Đóng bao 1kg = 260.000đ'
+    },
+    suadac: {
+      name: 'Sữa đặc Ngôi Sao Phương Nam',
+      unit: 'g',
+      category: 'Sữa & Béo',
+      purchaseUnit: 'Lon',
+      conversionRate: 380,
+      purchasePrice: 24000,
+      notes: 'Lon 380g = 24.000đ'
+    },
+    suatuoi: {
+      name: 'Sữa tươi thanh trùng Barista',
+      unit: 'ml',
+      category: 'Sữa & Béo',
+      purchaseUnit: 'Hộp',
+      conversionRate: 1000,
+      purchasePrice: 35000,
+      notes: 'Hộp 1 Lít = 35.000đ'
+    },
+    syrup: {
+      name: 'Syrup / Siro Monin',
+      unit: 'ml',
+      category: 'Đường & Syrup',
+      purchaseUnit: 'Chai',
+      conversionRate: 750,
+      purchasePrice: 210000,
+      notes: 'Chai 750ml = 210.000đ'
+    },
+    tra: {
+      name: 'Trà Oolong / Trà Đen',
+      unit: 'g',
+      category: 'Trà & Thảo mộc',
+      purchaseUnit: 'Gói',
+      conversionRate: 500,
+      purchasePrice: 120000,
+      notes: 'Gói 500g = 120.000đ'
+    },
+    ly: {
+      name: 'Ly nhựa PP 500ml',
+      unit: 'cái',
+      category: 'Bao bì & Vật tư',
+      purchaseUnit: 'Lốc',
+      conversionRate: 50,
+      purchasePrice: 45000,
+      notes: 'Lốc 50 cái = 45.000đ'
+    }
+  };
+
+  const p = presets[presetKey];
+  if (!p) return;
+
+  const nameInput = document.getElementById('ing-name');
+  if (!nameInput.value.trim()) nameInput.value = p.name;
+  document.getElementById('ing-unit').value = p.unit;
+  document.getElementById('ing-category').value = p.category;
+  document.getElementById('ing-purchase-unit').value = p.purchaseUnit;
+  document.getElementById('ing-conversion-rate').value = p.conversionRate;
+  document.getElementById('ing-purchase-price').value = p.purchasePrice;
+  document.getElementById('ing-notes').value = p.notes;
+
+  window.calculateIngredientCostFromPackage();
+};
+
+// Tự động tính đơn giá vốn từ quy cách mua hàng
+window.calculateIngredientCostFromPackage = function() {
+  const baseUnit = (document.getElementById('ing-unit')?.value || 'đơn vị').trim();
+  const baseUnitLabel = document.getElementById('ing-calc-base-unit-text');
+  if (baseUnitLabel) baseUnitLabel.textContent = baseUnit;
+
+  const conversionRate = Number(document.getElementById('ing-conversion-rate')?.value) || 0;
+  const purchasePrice = Number(document.getElementById('ing-purchase-price')?.value) || 0;
+  const purchaseQty = Number(document.getElementById('ing-purchase-qty')?.value) || 0;
+  const pUnit = (document.getElementById('ing-purchase-unit')?.value || 'đơn vị').trim();
+
+  if (conversionRate > 0 && purchasePrice > 0) {
+    const costPerUnit = Math.round((purchasePrice / conversionRate) * 100) / 100;
+    document.getElementById('ing-cost').value = costPerUnit;
+    document.getElementById('ing-calc-cost-result').textContent = `${formatNumber(costPerUnit)} đ / ${baseUnit}`;
+  } else if (!document.getElementById('ing-cost').value) {
+    document.getElementById('ing-calc-cost-result').textContent = `0 đ / ${baseUnit}`;
+  }
+
+  if (purchaseQty > 0 && conversionRate > 0) {
+    const stockQty = Math.round(purchaseQty * conversionRate * 100) / 100;
+    document.getElementById('ing-stock').value = stockQty;
+    document.getElementById('ing-calc-stock-result').textContent = `Tồn: ${formatNumber(stockQty)} ${baseUnit}`;
+  }
+
+  // Tự động cập nhật gợi ý ghi chú nếu trống
+  const notesInput = document.getElementById('ing-notes');
+  if (notesInput && !notesInput.value.trim() && conversionRate > 0 && purchasePrice > 0) {
+    notesInput.value = `1 ${pUnit} = ${formatNumber(conversionRate)} ${baseUnit} (${formatMoney(purchasePrice)})`;
+  }
+};
+
 window.openAddIngredientModal = function() {
   document.getElementById('modal-ingredient-title').textContent = 'Thêm Nguyên Liệu Mới';
   document.getElementById('ing-id').value = '';
   document.getElementById('ing-name').value = '';
-  document.getElementById('ing-unit').value = '';
+  document.getElementById('ing-unit').value = 'g';
+  document.getElementById('ing-category').value = 'Cà phê';
+  document.getElementById('ing-purchase-unit').value = '';
+  document.getElementById('ing-conversion-rate').value = '';
+  document.getElementById('ing-purchase-price').value = '';
+  document.getElementById('ing-purchase-qty').value = '';
   document.getElementById('ing-cost').value = '';
   document.getElementById('ing-stock').value = '0';
   document.getElementById('ing-min-alert').value = '100';
   document.getElementById('ing-notes').value = '';
+  document.getElementById('ing-calc-cost-result').textContent = '0 đ / đơn vị';
+  document.getElementById('ing-calc-stock-result').textContent = 'Tồn: 0';
+  const baseUnitLabel = document.getElementById('ing-calc-base-unit-text');
+  if (baseUnitLabel) baseUnitLabel.textContent = 'g';
   window.openModal('modal-ingredient');
 };
 
@@ -550,17 +675,98 @@ window.openEditIngredientModal = function(id) {
   document.getElementById('ing-stock').value = ing.stockQuantity;
   document.getElementById('ing-min-alert').value = ing.minStockAlert;
   document.getElementById('ing-notes').value = ing.notes || '';
+
+  // Điền quy cách đóng gói nếu đã lưu
+  const pUnit = ing.purchaseUnit || '';
+  const cRate = ing.conversionRate > 0 ? ing.conversionRate : (pUnit ? 1000 : '');
+  const pPrice = ing.purchasePrice || (cRate && ing.costPerUnit ? Math.round(cRate * ing.costPerUnit) : '');
+
+  document.getElementById('ing-purchase-unit').value = pUnit;
+  document.getElementById('ing-conversion-rate').value = cRate;
+  document.getElementById('ing-purchase-price').value = pPrice;
+
+  if (cRate && cRate > 1 && ing.stockQuantity > 0) {
+    document.getElementById('ing-purchase-qty').value = Math.round((ing.stockQuantity / cRate) * 100) / 100;
+  } else {
+    document.getElementById('ing-purchase-qty').value = '';
+  }
+
+  const baseUnitLabel = document.getElementById('ing-calc-base-unit-text');
+  if (baseUnitLabel) baseUnitLabel.textContent = ing.unit;
+  document.getElementById('ing-calc-cost-result').textContent = `${formatNumber(ing.costPerUnit)} đ / ${ing.unit}`;
+  document.getElementById('ing-calc-stock-result').textContent = `Tồn: ${formatNumber(ing.stockQuantity)} ${ing.unit}`;
+
   window.openModal('modal-ingredient');
 };
 
+window.setImportMode = function(mode) {
+  const modeInput = document.getElementById('import-mode');
+  if (modeInput) modeInput.value = mode;
+
+  const tabPackage = document.getElementById('import-tab-package');
+  const tabBase = document.getElementById('import-tab-base');
+  const secPackage = document.getElementById('import-section-package');
+  const qtyHint = document.getElementById('import-qty-hint');
+  const costHint = document.getElementById('import-cost-hint');
+
+  if (mode === 'package') {
+    tabPackage.classList.add('bg-white', 'shadow-xs', 'text-emerald-700');
+    tabPackage.classList.remove('text-slate-600');
+    tabBase.classList.remove('bg-white', 'shadow-xs', 'text-emerald-700');
+    tabBase.classList.add('text-slate-600');
+    secPackage.classList.remove('hidden');
+    if (qtyHint) qtyHint.textContent = 'Tự động tính từ số lượng quy đổi';
+    if (costHint) costHint.textContent = 'Tự tính = Giá mua ÷ Quy cách';
+    document.getElementById('import-qty').readOnly = true;
+    document.getElementById('import-qty').classList.add('bg-slate-50');
+    document.getElementById('import-unit-cost').readOnly = true;
+    document.getElementById('import-unit-cost').classList.add('bg-slate-50');
+  } else {
+    tabBase.classList.add('bg-white', 'shadow-xs', 'text-emerald-700');
+    tabBase.classList.remove('text-slate-600');
+    tabPackage.classList.remove('bg-white', 'shadow-xs', 'text-emerald-700');
+    tabPackage.classList.add('text-slate-600');
+    secPackage.classList.add('hidden');
+    if (qtyHint) qtyHint.textContent = 'Nhập số lượng cơ sở trực tiếp';
+    if (costHint) costHint.textContent = 'Nhập đơn giá cho 1 đơn vị cơ sở';
+    document.getElementById('import-qty').readOnly = false;
+    document.getElementById('import-qty').classList.remove('bg-slate-50');
+    document.getElementById('import-unit-cost').readOnly = false;
+    document.getElementById('import-unit-cost').classList.remove('bg-slate-50');
+  }
+};
+
 window.openImportModal = function(id, name, unit, currentCost) {
+  const ing = globalIngredients.find(i => i._id === id);
+  const purchaseUnit = (ing && ing.purchaseUnit) ? ing.purchaseUnit : (unit === 'g' ? 'Bao' : unit === 'ml' ? 'Chai' : 'Gói');
+  const conversionRate = (ing && ing.conversionRate > 0) ? ing.conversionRate : (unit === 'g' || unit === 'ml' ? 1000 : 1);
+  const purchasePrice = (ing && ing.purchasePrice > 0) ? ing.purchasePrice : Math.round(currentCost * conversionRate);
+
   document.getElementById('import-ing-id').value = id;
-  document.getElementById('import-stock-subtitle').textContent = `Nguyên liệu: ${name} (Đang có đơn giá chuẩn: ${formatMoney(currentCost)}/${unit})`;
+  document.getElementById('import-stock-subtitle').textContent = `Nguyên liệu: ${name} (Đang có đơn giá vốn chuẩn: ${formatMoney(currentCost)}/${unit})`;
   document.getElementById('import-unit-label').textContent = `(${unit})`;
-  document.getElementById('import-unit-cost').value = currentCost;
+  document.getElementById('import-cost-per-unit-label').textContent = unit;
+
+  document.getElementById('import-pack-unit-name').textContent = purchaseUnit;
+  document.getElementById('import-base-unit-name').textContent = unit;
+  document.getElementById('import-package-unit-label').textContent = purchaseUnit;
+  document.getElementById('import-package-unit-price-label').textContent = purchaseUnit;
+  document.getElementById('import-package-spec-text').textContent = conversionRate > 1 ? `1 ${purchaseUnit} = ${formatNumber(conversionRate)} ${unit}` : `1 ${unit}`;
+
+  document.getElementById('import-conversion-rate').value = conversionRate;
+  document.getElementById('import-package-qty').value = '';
+  document.getElementById('import-package-price').value = purchasePrice || '';
   document.getElementById('import-qty').value = '';
+  document.getElementById('import-unit-cost').value = currentCost || '';
   document.getElementById('import-total-cost').value = '';
   document.getElementById('import-notes').value = '';
+
+  if (conversionRate > 1) {
+    window.setImportMode('package');
+  } else {
+    window.setImportMode('base');
+  }
+
   window.openModal('modal-import-stock');
 };
 
@@ -895,7 +1101,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Forms
+  // Form: Thêm / Sửa Nguyên Liệu
+  const ingCalcInputs = ['ing-unit', 'ing-purchase-unit', 'ing-conversion-rate', 'ing-purchase-price', 'ing-purchase-qty'];
+  ingCalcInputs.forEach(inputId => {
+    document.getElementById(inputId)?.addEventListener('input', window.calculateIngredientCostFromPackage);
+  });
+
   document.getElementById('form-ingredient')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('ing-id').value;
@@ -906,7 +1117,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const stockQuantity = Number(document.getElementById('ing-stock').value);
     const minStockAlert = Number(document.getElementById('ing-min-alert').value);
     const notes = document.getElementById('ing-notes').value.trim();
-    const payload = { name, category, unit, costPerUnit, stockQuantity, minStockAlert, notes };
+    const purchaseUnit = document.getElementById('ing-purchase-unit').value.trim();
+    const conversionRate = Number(document.getElementById('ing-conversion-rate').value) || 1;
+    const purchasePrice = Number(document.getElementById('ing-purchase-price').value) || 0;
+
+    const payload = {
+      name,
+      category,
+      unit,
+      costPerUnit,
+      stockQuantity,
+      minStockAlert,
+      notes,
+      purchaseUnit,
+      conversionRate,
+      purchasePrice
+    };
+
     try {
       if (id) await API.updateIngredient(id, payload);
       else await API.createIngredient(payload);
@@ -918,32 +1145,83 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // Form: Nhập Kho
+  function syncImportFromPackage() {
+    const pQty = Number(document.getElementById('import-package-qty')?.value) || 0;
+    const pPrice = Number(document.getElementById('import-package-price')?.value) || 0;
+    const rate = Number(document.getElementById('import-conversion-rate')?.value) || 1;
+    if (pQty > 0) {
+      const baseQty = Math.round(pQty * rate * 100) / 100;
+      document.getElementById('import-qty').value = baseQty;
+      if (pPrice > 0) {
+        const total = Math.round(pQty * pPrice);
+        const unitCost = Math.round((pPrice / rate) * 100) / 100;
+        document.getElementById('import-total-cost').value = total;
+        document.getElementById('import-unit-cost').value = unitCost;
+      }
+    }
+  }
+
+  document.getElementById('import-package-qty')?.addEventListener('input', syncImportFromPackage);
+  document.getElementById('import-package-price')?.addEventListener('input', syncImportFromPackage);
+
+  document.getElementById('import-total-cost')?.addEventListener('input', () => {
+    const mode = document.getElementById('import-mode')?.value || 'package';
+    const total = Number(document.getElementById('import-total-cost').value) || 0;
+    if (mode === 'package') {
+      const pQty = Number(document.getElementById('import-package-qty').value) || 0;
+      const rate = Number(document.getElementById('import-conversion-rate').value) || 1;
+      if (pQty > 0 && total > 0) {
+        const pPrice = Math.round(total / pQty);
+        document.getElementById('import-package-price').value = pPrice;
+        document.getElementById('import-unit-cost').value = Math.round((pPrice / rate) * 100) / 100;
+      }
+    } else {
+      const q = Number(document.getElementById('import-qty').value) || 0;
+      if (q > 0 && total > 0) {
+        document.getElementById('import-unit-cost').value = Math.round((total / q) * 100) / 100;
+      }
+    }
+  });
+
+  const syncBaseImport = () => {
+    const mode = document.getElementById('import-mode')?.value;
+    if (mode === 'base') {
+      const q = Number(document.getElementById('import-qty').value) || 0;
+      const c = Number(document.getElementById('import-unit-cost').value) || 0;
+      if (q > 0 && c > 0) document.getElementById('import-total-cost').value = Math.round(q * c);
+    }
+  };
+  document.getElementById('import-qty')?.addEventListener('input', syncBaseImport);
+  document.getElementById('import-unit-cost')?.addEventListener('input', syncBaseImport);
+
   document.getElementById('form-import-stock')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('import-ing-id').value;
     const quantity = Number(document.getElementById('import-qty').value);
     const costPerUnit = Number(document.getElementById('import-unit-cost').value);
     const totalCost = Number(document.getElementById('import-total-cost').value);
-    const notes = document.getElementById('import-notes').value.trim();
+    const purchasePrice = Number(document.getElementById('import-package-price').value) || 0;
+    let notes = document.getElementById('import-notes').value.trim();
+
+    const mode = document.getElementById('import-mode')?.value || 'package';
+    if (mode === 'package') {
+      const packQty = Number(document.getElementById('import-package-qty').value);
+      const packUnit = document.getElementById('import-package-unit-label').textContent;
+      if (packQty > 0) {
+        const packNote = `Nhập ${packQty} ${packUnit}`;
+        notes = notes ? `${packNote} - ${notes}` : packNote;
+      }
+    }
+
     try {
-      await API.importIngredient(id, { quantity, costPerUnit, totalCost, notes });
+      await API.importIngredient(id, { quantity, costPerUnit, totalCost, notes, purchasePrice });
       showToast('Nhập kho thành công!');
       window.closeModal('modal-import-stock');
       loadInventoryData();
     } catch (err) {
       showToast(err.message, 'error');
     }
-  });
-
-  document.getElementById('import-qty')?.addEventListener('input', () => {
-    const q = Number(document.getElementById('import-qty').value) || 0;
-    const c = Number(document.getElementById('import-unit-cost').value) || 0;
-    if (q > 0 && c > 0) document.getElementById('import-total-cost').value = Math.round(q * c);
-  });
-  document.getElementById('import-unit-cost')?.addEventListener('input', () => {
-    const q = Number(document.getElementById('import-qty').value) || 0;
-    const c = Number(document.getElementById('import-unit-cost').value) || 0;
-    if (q > 0 && c > 0) document.getElementById('import-total-cost').value = Math.round(q * c);
   });
 
   document.getElementById('form-product')?.addEventListener('submit', async (e) => {

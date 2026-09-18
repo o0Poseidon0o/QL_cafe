@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
 // Thêm nguyên liệu mới
 router.post('/', async (req, res) => {
   try {
-    const { name, unit, category, costPerUnit, stockQuantity, minStockAlert, notes } = req.body;
+    const { name, unit, category, costPerUnit, stockQuantity, minStockAlert, notes, purchaseUnit, conversionRate, purchasePrice } = req.body;
     
     const existing = await Ingredient.findOne({ name: name.trim() });
     if (existing) {
@@ -36,6 +36,9 @@ router.post('/', async (req, res) => {
       costPerUnit: Number(costPerUnit) || 0,
       stockQuantity: Number(stockQuantity) || 0,
       minStockAlert: Number(minStockAlert) || 50,
+      purchaseUnit: purchaseUnit ? purchaseUnit.trim() : '',
+      conversionRate: Number(conversionRate) > 0 ? Number(conversionRate) : 1,
+      purchasePrice: Number(purchasePrice) || 0,
       notes: notes || ''
     });
 
@@ -60,7 +63,7 @@ router.post('/', async (req, res) => {
 // Cập nhật nguyên liệu
 router.put('/:id', async (req, res) => {
   try {
-    const { name, unit, category, costPerUnit, minStockAlert, notes } = req.body;
+    const { name, unit, category, costPerUnit, minStockAlert, notes, purchaseUnit, conversionRate, purchasePrice } = req.body;
     const ingredient = await Ingredient.findById(req.params.id);
     if (!ingredient) return res.status(404).json({ message: 'Không tìm thấy nguyên liệu' });
 
@@ -70,6 +73,9 @@ router.put('/:id', async (req, res) => {
     if (costPerUnit !== undefined) ingredient.costPerUnit = Number(costPerUnit);
     if (minStockAlert !== undefined) ingredient.minStockAlert = Number(minStockAlert);
     if (notes !== undefined) ingredient.notes = notes;
+    if (purchaseUnit !== undefined) ingredient.purchaseUnit = purchaseUnit.trim();
+    if (conversionRate !== undefined) ingredient.conversionRate = Number(conversionRate) > 0 ? Number(conversionRate) : 1;
+    if (purchasePrice !== undefined) ingredient.purchasePrice = Number(purchasePrice) || 0;
 
     await ingredient.save();
     res.json(ingredient);
@@ -81,7 +87,7 @@ router.put('/:id', async (req, res) => {
 // Nhập kho nguyên liệu
 router.post('/:id/import', async (req, res) => {
   try {
-    const { quantity, costPerUnit, totalCost, notes } = req.body;
+    const { quantity, costPerUnit, totalCost, notes, purchasePrice } = req.body;
     const importQty = Number(quantity);
     if (!importQty || importQty <= 0) return res.status(400).json({ message: 'Số lượng phải lớn hơn 0' });
 
@@ -98,6 +104,9 @@ router.post('/:id/import', async (req, res) => {
 
     ingredient.stockQuantity = newTotalQty;
     ingredient.costPerUnit = newCostPerUnit;
+    if (purchasePrice !== undefined && Number(purchasePrice) > 0) {
+      ingredient.purchasePrice = Number(purchasePrice);
+    }
     await ingredient.save();
 
     const transaction = await Transaction.create({

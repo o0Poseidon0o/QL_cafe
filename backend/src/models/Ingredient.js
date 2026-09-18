@@ -34,6 +34,21 @@ const ingredientSchema = new mongoose.Schema({
     min: 0,
     default: 50
   },
+  purchaseUnit: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  conversionRate: {
+    type: Number,
+    min: 0,
+    default: 1
+  },
+  purchasePrice: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   notes: {
     type: String,
     default: ''
