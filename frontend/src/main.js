@@ -249,7 +249,7 @@ export async function loadCostingData() {
         <div class="col-span-full py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 space-y-2">
           <i data-lucide="coffee" class="w-10 h-10 mx-auto text-slate-300"></i>
           <p class="font-semibold text-slate-600">Menu chưa có món nước nào!</p>
-          <p class="text-xs text-slate-400">Bấm "Thêm Món Nước Mới" hoặc thử nút "🌽 Nạp mẫu Trà Sữa Ôlong Bắp Non" ở góc trên.</p>
+          <p class="text-xs text-slate-400">Bấm nút "Thêm Món Nước Mới" để thiết lập công thức và tính giá thành.</p>
         </div>
       `;
       if (window.lucide) window.lucide.createIcons();
@@ -737,6 +737,17 @@ export function updateLiveCostCalculation() {
   document.getElementById('preview-suggested-price').textContent = formatMoney(suggested);
   document.getElementById('preview-kcal').textContent = `${Math.round(totalKcal)} kcal`;
 
+  const costTipEl = document.getElementById('preview-cost-tip');
+  if (costTipEl) {
+    if (targetPct > 0 && targetPct < 15) {
+      const mult = Math.round((100 / targetPct) * 10) / 10;
+      costTipEl.classList.remove('hidden');
+      costTipEl.innerHTML = `💡 <b>Lưu ý:</b> Bạn đang nhập <b>${targetPct}% giá vốn</b> — nghĩa là giá bán gợi ý sẽ gấp <b>${mult} lần</b> giá vốn. Chuẩn quán cafe / trà sữa thường để <b>25% – 35%</b> (bán gấp ~3 lần vốn).`;
+    } else {
+      costTipEl.classList.add('hidden');
+    }
+  }
+
   // Cập nhật live từng dòng Size mở rộng
   document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
     const factor = Number(vRow.querySelector('.var-scale').value) || 1;
@@ -997,9 +1008,32 @@ function syncSubUnitLabels() {
   const unit = (document.getElementById('ing-unit')?.value || 'g').trim() || 'g';
   const lbl1 = document.getElementById('ing-calc-base-unit-text');
   const lbl2 = document.getElementById('sub-yield-unit-label');
+  const convUnitLbl = document.getElementById('ing-conv-unit-label');
+  const convHint = document.getElementById('ing-conv-hint');
   if (lbl1) lbl1.textContent = unit;
   if (lbl2) lbl2.textContent = unit;
+  if (convUnitLbl) convUnitLbl.textContent = unit;
+
+  if (convHint) {
+    const u = unit.toLowerCase();
+    if (u === 'miếng') convHint.textContent = 'VD: 1 Lon đào = 12 miếng · 1 Vỉ thạch = 10 miếng';
+    else if (u === 'trái' || u === 'quả') convHint.textContent = 'VD: 1 Kg chanh = 15 trái · 1 Bắp = 1 trái';
+    else if (u === 'lát') convHint.textContent = 'VD: 1 Trái cam = 8 lát · 1 Kg chanh = 60 lát';
+    else if (u === 'cái') convHint.textContent = 'VD: 1 Lốc ly = 50 cái · 1 Hộp bánh flan = 10 cái';
+    else if (u === 'ml') convHint.textContent = 'VD: 1 Hộp sữa = 1000 ml · 1 Chai siro = 750 ml';
+    else convHint.textContent = 'VD: 1kg = 1000g · 1 lon đào = 12 miếng';
+  }
 }
+
+window.setBaseUnitQuick = function(unit) {
+  const unitInput = document.getElementById('ing-unit');
+  if (unitInput) {
+    unitInput.value = unit;
+    syncSubUnitLabels();
+    window.calculateIngredientCostFromPackage();
+    updateSubRecipeLivePreview();
+  }
+};
 
 window.addSubRecipeRow = function(ingredientId = '', quantity = '') {
   const container = document.getElementById('subrecipe-rows-container');
@@ -1078,6 +1112,7 @@ window.applyPreset = function(presetKey) {
     suatuoi: { name: 'Sữa yến mạch Oatside', unit: 'ml', category: 'Sữa & Béo', purchaseUnit: 'Hộp', conversionRate: 1000, purchasePrice: 42000, kcal100: 46, track: true },
     suadac: { name: 'Sữa đặc (1kg)', unit: 'g', category: 'Sữa & Béo', purchaseUnit: 'Hộp', conversionRate: 1000, purchasePrice: 41000, kcal100: 313, track: true },
     nuocduong: { name: 'Nước đường Hàn Quốc', unit: 'ml', category: 'Đường & Syrup', purchaseUnit: 'Can', conversionRate: 25000, purchasePrice: 568000, kcal100: 280, track: true },
+    dao_mieng: { name: 'Đào ngâm lon Kronos', unit: 'miếng', category: 'Topping', purchaseUnit: 'Lon', conversionRate: 12, purchasePrice: 54000, kcal100: 0, track: true },
     cafe: { name: 'Cà phê hạt Robusta mộc', unit: 'g', category: 'Cà phê', purchaseUnit: 'Bao', conversionRate: 1000, purchasePrice: 260000, kcal100: 0, track: true },
     ly: { name: 'Ly nhựa PP 500ml + Nắp', unit: 'cái', category: 'Bao bì & Vật tư', purchaseUnit: 'Lốc', conversionRate: 50, purchasePrice: 32500, kcal100: 0, track: true },
     nuoc_da: { name: 'Nước lọc pha chế', unit: 'ml', category: 'Nguyên liệu khác', purchaseUnit: 'Lít', conversionRate: 1000, purchasePrice: 0, kcal100: 0, track: false }
@@ -1686,20 +1721,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('pos-search-input')?.addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
     renderPosProductList(globalProducts.filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)));
-  });
-
-  // Seed Demo Trà Sữa Ôlong Bắp Non button
-  document.getElementById('btn-seed-demo-recipe')?.addEventListener('click', async () => {
-    try {
-      const res = await API.seedDemoRecipe();
-      showToast(res.message || 'Đã nạp công thức mẫu thành công!');
-      await loadCostingData();
-      if (res.product && res.product._id) {
-        window.viewCostBreakdown(res.product._id);
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
   });
 
   // Modals open buttons

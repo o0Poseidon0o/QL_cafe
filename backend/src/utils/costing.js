@@ -44,7 +44,8 @@ function formatSpecPrice(ing) {
     if (unitLower === 'ml' && rate % 1000 === 0) {
       return `${formatViNumber(pPrice)}đ/${formatViNumber(rate / 1000)} lít`;
     }
-    return `${formatViNumber(pPrice)}đ/${formatViNumber(rate)}${ing.unit}`;
+    const needsSpace = !['g', 'kg', 'ml', 'l'].includes(unitLower);
+    return `${formatViNumber(pPrice)}đ/${formatViNumber(rate)}${needsSpace ? ' ' : ''}${ing.unit}`;
   }
 
   const labelUnit = ing.purchaseUnit ? `1 ${ing.purchaseUnit}` : `1 ${ing.unit}`;

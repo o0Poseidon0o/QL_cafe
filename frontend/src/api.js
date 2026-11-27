@@ -80,16 +80,6 @@ export const API = {
     return await res.json();
   },
 
-  async seedDemoRecipe() {
-    const res = await fetch(`${API_BASE}/products/seed-demo-recipe`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.message || 'Lỗi nạp công thức mẫu');
-    return result;
-  },
-
   async createProduct(data) {
     const res = await fetch(`${API_BASE}/products`, {
       method: 'POST',
