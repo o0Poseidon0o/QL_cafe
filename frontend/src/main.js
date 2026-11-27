@@ -1300,22 +1300,27 @@ export function updateLiveCostCalculation() {
     if (simSizes.some(s => s.id === prevVal)) sizeSelect.value = prevVal;
 
     const prevChecked = new Set(Array.from(topListEl.querySelectorAll('input:checked')).map(i => i.value));
-    if (!globalToppings.length) {
-      topListEl.innerHTML = `
-        <div class="flex flex-wrap items-center justify-between gap-2 w-full text-[11px] text-slate-600">
-          <span>Quán chưa tạo topping gọi thêm nào (Trân châu, Pudding, Kem cheese...).</span>
-          <button type="button" onclick="window.openAddToppingModal()" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg">+ Tạo Topping ngay</button>
-        </div>
-      `;
-    } else {
-      topListEl.innerHTML = globalToppings.map(t => `
-        <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-purple-200 hover:border-purple-400 cursor-pointer text-[11px]">
-          <input type="checkbox" class="prod-sim-top-cb accent-purple-600" value="${t._id}" ${prevChecked.has(t._id) ? 'checked' : ''} onchange="window.recalcProductModalCupSimulator()">
-          <span class="font-semibold text-slate-800">${escapeHtml(t.name)}</span>
-          <span class="text-purple-700 font-bold">+${Math.round(t.price / 1000)}k</span>
-        </label>
-      `).join('');
-    }
+    const toppingPills = globalToppings.map(t => `
+      <label class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-purple-200 hover:border-purple-400 cursor-pointer text-[11px] shadow-2xs">
+        <input type="checkbox" class="prod-sim-top-cb accent-purple-600" value="${t._id}" ${prevChecked.has(t._id) ? 'checked' : ''} onchange="window.recalcProductModalCupSimulator()">
+        <span class="font-semibold text-slate-800">${escapeHtml(t.name)}</span>
+        <span class="text-purple-700 font-bold">+${Math.round(t.price / 1000)}k</span>
+      </label>
+    `).join('');
+
+    const addMoreBtn = `
+      <button type="button" onclick="window.openAddToppingModal()" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] shadow-2xs transition-all">
+        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Thêm Topping mới
+      </button>
+    `;
+
+    topListEl.innerHTML = !globalToppings.length
+      ? `<div class="flex flex-wrap items-center justify-between gap-2 w-full text-[11px] text-slate-600">
+           <span>Chưa có topping nào (Trân châu, Pudding, Kem cheese...).</span>
+           ${addMoreBtn}
+         </div>`
+      : `${toppingPills}${addMoreBtn}`;
+    if (window.lucide) window.lucide.createIcons();
     window.recalcProductModalCupSimulator();
   }
 }
@@ -1348,6 +1353,10 @@ window.recalcProductModalCupSimulator = function() {
   const targetPct = Number(document.getElementById('prod-target-cost')?.value) || 30;
   const suggested = suggestRetailPrice(totalCost, targetPct);
 
+  const resetPctBtn = targetPct < 15
+    ? ` <button type="button" onclick="window.resetTargetCostPercent30()" class="text-[10px] underline text-amber-700 hover:text-amber-900 font-bold">(đang là ${targetPct}% → Đặt lại 30%)</button>`
+    : '';
+
   resEl.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
@@ -1358,10 +1367,18 @@ window.recalcProductModalCupSimulator = function() {
       </div>
       <div class="text-right">
         <div class="text-sm font-extrabold text-emerald-700">Giá khách trả: ${formatMoney(totalPrice)}</div>
-        <div class="text-[11px] text-slate-600">Lãi: <b class="text-emerald-700">${formatMoney(profit)} (${margin}%)</b> · Gợi ý: <b class="text-blue-700">${formatMoney(suggested)}</b></div>
+        <div class="text-[11px] text-slate-600">Lãi: <b class="text-emerald-700">${formatMoney(profit)} (${margin}%)</b> · Gợi ý (${targetPct}% vốn): <b class="text-blue-700">${formatMoney(suggested)}</b>${resetPctBtn}</div>
       </div>
     </div>
   `;
+};
+
+window.resetTargetCostPercent30 = function() {
+  const inp = document.getElementById('prod-target-cost');
+  if (inp) {
+    inp.value = '30';
+    updateLiveCostCalculation();
+  }
 };
 
 window.openAddProductModal = async function() {
