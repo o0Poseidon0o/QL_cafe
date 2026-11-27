@@ -58,3 +58,64 @@ h1, h2, h3, h4, h5, h6 {
 .modal-content {
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease-out;
 }
+
+/* Phiếu công thức chuẩn kiểu Trà Lộc Phát */
+.recipe-sheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.recipe-sheet-table th,
+.recipe-sheet-table td {
+  border: 1px solid #cbd5e1;
+  padding: 6px 10px;
+}
+
+.recipe-sheet-header {
+  background-color: #d1e7c6;
+  color: #14532d;
+  font-weight: 800;
+  text-transform: uppercase;
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+.recipe-sheet-subheader {
+  background-color: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
+}
+
+/* Chế độ in SOP cho nhân viên: ẩn toàn bộ cột giá tiền & lợi nhuận */
+.sop-mode .cost-only {
+  display: none !important;
+}
+
+/* Print layout cho Phiếu Công Thức & Giá Thành */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #recipe-sheet-printable,
+  #recipe-sheet-printable * {
+    visibility: visible;
+  }
+  #recipe-sheet-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .recipe-sheet-header {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

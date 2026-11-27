@@ -7,6 +7,8 @@ const orderItemSchema = new mongoose.Schema({
     required: true
   },
   productName: { type: String, required: true },
+  variantName: { type: String, default: '' },
+  scaleFactor: { type: Number, default: 1 },
   price: { type: Number, required: true },
   cost: { type: Number, default: 0 },
   quantity: { type: Number, required: true, min: 1 },

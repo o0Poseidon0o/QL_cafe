@@ -34,29 +34,67 @@ router.post('/', async (req, res) => {
       const quantity = Number(item.quantity);
       if (quantity <= 0) continue;
 
-      let singleCupCost = 0;
+      // Xác định size / biến thể (nếu chọn size L / XL / Chai)
+      let variantName = product.baseSizeLabel || '';
+      let scaleFactor = 1;
+      let unitSellPrice = product.price;
+      let unitPkgCost = Number(product.packagingCost) || 0;
+
+      if (item.variantName && item.variantName !== product.baseSizeLabel) {
+        if (item.variantName === '__BOTTLE__' && product.bottlingConfig && product.bottlingConfig.enabled) {
+          const baseVol = Number(product.baseVolumeMl) || 500;
+          const bVol = Number(product.bottlingConfig.bottleVolumeMl) || 330;
+          variantName = `Chai ${bVol}ml`;
+          scaleFactor = baseVol > 0 ? bVol / baseVol : 1;
+          unitSellPrice = Number(product.bottlingConfig.sellPricePerBottle) || product.price;
+          unitPkgCost = Number(product.bottlingConfig.bottleCost) || 0;
+        } else if (Array.isArray(product.variants)) {
+          const matchedVariant = product.variants.find(v => v.name === item.variantName);
+          if (matchedVariant) {
+            variantName = matchedVariant.name;
+            scaleFactor = Number(matchedVariant.scaleFactor) || 1;
+            unitSellPrice = Number(matchedVariant.price) || product.price;
+            unitPkgCost = (Number(product.packagingCost) || 0) + (Number(matchedVariant.extraPackagingCost) || 0);
+          }
+        }
+      }
+
+      let rawIngCostPerUnit = 0;
       if (product.recipe && product.recipe.length > 0) {
         for (const r of product.recipe) {
           if (!r.ingredient) continue;
           const ingId = r.ingredient._id.toString();
-          const needed = r.quantity * quantity;
-          singleCupCost += Math.round(r.quantity * (r.ingredient.costPerUnit || 0));
+          const qtyForOne = r.quantity * scaleFactor;
+          rawIngCostPerUnit += qtyForOne * (r.ingredient.costPerUnit || 0);
 
-          if (!ingredientDeductions.has(ingId)) {
-            ingredientDeductions.set(ingId, { ingredient: r.ingredient, quantityNeeded: 0 });
+          // Chỉ trừ kho những nguyên liệu có bật theo dõi tồn kho
+          if (r.ingredient.trackInventory !== false) {
+            const needed = Math.round(qtyForOne * quantity * 100) / 100;
+            if (!ingredientDeductions.has(ingId)) {
+              ingredientDeductions.set(ingId, { ingredient: r.ingredient, quantityNeeded: 0 });
+            }
+            ingredientDeductions.get(ingId).quantityNeeded = Math.round((ingredientDeductions.get(ingId).quantityNeeded + needed) * 100) / 100;
           }
-          ingredientDeductions.get(ingId).quantityNeeded += needed;
         }
       }
 
-      const subtotal = product.price * quantity;
+      const wastePercent = Number(product.wastePercent) || 0;
+      const singleCupCost = Math.round(rawIngCostPerUnit * (1 + wastePercent / 100) + unitPkgCost);
+      const subtotal = unitSellPrice * quantity;
+
       totalAmount += subtotal;
       totalCost += (singleCupCost * quantity);
 
+      const displayName = variantName && product.variants && product.variants.length > 0
+        ? `${product.name} (${variantName})`
+        : (item.variantName === '__BOTTLE__' ? `${product.name} (${variantName})` : product.name);
+
       orderItems.push({
         product: product._id,
-        productName: product.name,
-        price: product.price,
+        productName: displayName,
+        variantName,
+        scaleFactor,
+        price: unitSellPrice,
         cost: singleCupCost,
         quantity,
         subtotal
@@ -66,11 +104,11 @@ router.post('/', async (req, res) => {
     const stockWarnings = [];
     for (const [ingId, data] of ingredientDeductions.entries()) {
       const ingDoc = await Ingredient.findById(ingId);
-      if (ingDoc) {
+      if (ingDoc && ingDoc.trackInventory !== false) {
         if (ingDoc.stockQuantity < data.quantityNeeded) {
           stockWarnings.push(`Nguyên liệu "${ingDoc.name}" chỉ còn ${ingDoc.stockQuantity} ${ingDoc.unit} (cần ${data.quantityNeeded})`);
         }
-        ingDoc.stockQuantity = Math.max(0, ingDoc.stockQuantity - data.quantityNeeded);
+        ingDoc.stockQuantity = Math.max(0, Math.round((ingDoc.stockQuantity - data.quantityNeeded) * 100) / 100);
         await ingDoc.save();
       }
     }

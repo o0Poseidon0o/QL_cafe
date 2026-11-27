@@ -50,6 +50,17 @@ export const API = {
     return result;
   },
 
+  async cookSubRecipeBatch(id, data) {
+    const res = await fetch(`${API_BASE}/ingredients/${id}/cook-batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || 'Lỗi nấu mẻ bán thành phẩm');
+    return result;
+  },
+
   async deleteIngredient(id) {
     const res = await fetch(`${API_BASE}/ingredients/${id}`, { method: 'DELETE' });
     const result = await res.json();
@@ -67,6 +78,16 @@ export const API = {
     const res = await fetch(`${API_BASE}/products/${id}`);
     if (!res.ok) throw new Error((await res.json()).message || 'Lỗi tải món');
     return await res.json();
+  },
+
+  async seedDemoRecipe() {
+    const res = await fetch(`${API_BASE}/products/seed-demo-recipe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || 'Lỗi nạp công thức mẫu');
+    return result;
   },
 
   async createProduct(data) {

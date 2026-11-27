@@ -73,6 +73,7 @@ router.get('/dashboard', async (req, res) => {
     const lowStockItems = [];
 
     for (const ing of ingredients) {
+      if (ing.trackInventory === false) continue;
       totalInventoryValue += Math.round(ing.stockQuantity * ing.costPerUnit);
       if (ing.stockQuantity <= ing.minStockAlert) {
         lowStockCount++;
