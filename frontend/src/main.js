@@ -814,8 +814,15 @@ window.viewCostBreakdown = async function(productId) {
       `);
     }
 
-    // TẦNG 5: Khung thử ghép thêm nhiều Topping (tương tác live, ẩn khi in)
+    // TẦNG 5: Khung thử ghép Dung tích / Size + nhiều loại Topping (tương tác live, ẩn khi in)
     if (globalToppings.length > 0) {
+      const sizeOpts = (p.variantBreakdowns || []).map((v, idx) =>
+        `<option value="v:${idx}">${escapeHtml(v.name)} (vốn ${formatMoney(v.costPrice)} · bán ${formatMoney(v.price)})</option>`
+      );
+      if (p.bottlingSummary) {
+        sizeOpts.push(`<option value="bottle">🍾 Chai ${p.bottlingSummary.bottleVolumeMl}ml (vốn ${formatMoney(p.bottlingSummary.costPerBottle)} · bán ${formatMoney(p.bottlingSummary.sellPricePerBottle)})</option>`);
+      }
+
       const topCheckboxes = globalToppings.map(t => `
         <label class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-purple-200 hover:border-purple-400 cursor-pointer text-xs">
           <input type="checkbox" class="sim-topping-cb accent-purple-600" value="${t._id}" onchange="window.updateSheetToppingSimulation()">
@@ -827,10 +834,15 @@ window.viewCostBreakdown = async function(productId) {
 
       sectionsHtml.push(`
         <div class="cost-only no-print p-3.5 rounded-2xl bg-purple-50/80 border border-purple-200 space-y-2.5">
-          <div class="text-xs font-bold text-purple-900">🍡 Thử ghép thêm nhiều loại Topping (xem giá vốn & lãi gộp cộng dồn):</div>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="text-xs font-bold text-purple-900">🍡 Thử ghép Dung tích + Nhiều loại Topping → Ra giá 1 ly hoàn chỉnh:</div>
+            <select id="sheet-sim-size-select" onchange="window.updateSheetToppingSimulation()" class="px-2.5 py-1.5 text-xs font-bold bg-white border border-purple-300 rounded-lg text-slate-800">
+              ${sizeOpts.join('')}
+            </select>
+          </div>
           <div class="flex flex-wrap gap-2">${topCheckboxes}</div>
           <div id="sheet-topping-sim-result" class="text-xs bg-white p-2.5 rounded-xl border border-purple-100 text-slate-600">
-            Tích chọn 1 hoặc nhiều loại topping ở trên để xem ngay tổng vốn & lãi của ly nước kèm topping.
+            Chọn dung tích và tích thêm 1 hoặc nhiều loại topping để xem tổng vốn & giá bán của 1 ly hoàn chỉnh.
           </div>
         </div>
       `);
@@ -838,6 +850,7 @@ window.viewCostBreakdown = async function(productId) {
 
     document.getElementById('breakdown-sheet-content').innerHTML = sectionsHtml.join('');
     window.openModal('modal-cost-breakdown');
+    window.updateSheetToppingSimulation();
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -848,12 +861,26 @@ window.updateSheetToppingSimulation = function() {
   const resultEl = document.getElementById('sheet-topping-sim-result');
   if (!p || !resultEl) return;
 
-  const checkedIds = Array.from(document.querySelectorAll('.sim-topping-cb:checked')).map(cb => cb.value);
-  if (!checkedIds.length) {
-    resultEl.innerHTML = 'Tích chọn 1 hoặc nhiều loại topping ở trên để xem ngay tổng vốn & lãi của ly nước kèm topping.';
-    return;
+  const sizeKey = document.getElementById('sheet-sim-size-select')?.value || 'v:0';
+  let sizeName = p.baseSizeLabel || 'Size chuẩn';
+  let baseCost = p.costPrice || 0;
+  let basePrice = p.price || 0;
+
+  if (sizeKey === 'bottle' && p.bottlingSummary) {
+    sizeName = `Chai ${p.bottlingSummary.bottleVolumeMl}ml`;
+    baseCost = p.bottlingSummary.costPerBottle || 0;
+    basePrice = p.bottlingSummary.sellPricePerBottle || 0;
+  } else if (sizeKey.startsWith('v:')) {
+    const idx = Number(sizeKey.slice(2)) || 0;
+    const v = (p.variantBreakdowns || [])[idx];
+    if (v) {
+      sizeName = v.name;
+      baseCost = v.costPrice || 0;
+      basePrice = v.price || 0;
+    }
   }
 
+  const checkedIds = Array.from(document.querySelectorAll('.sim-topping-cb:checked')).map(cb => cb.value);
   let extraCost = 0;
   let extraPrice = 0;
   const names = [];
@@ -866,17 +893,17 @@ window.updateSheetToppingSimulation = function() {
     }
   });
 
-  const totalCost = (p.costPrice || 0) + extraCost;
-  const totalPrice = (p.price || 0) + extraPrice;
+  const totalCost = baseCost + extraCost;
+  const totalPrice = basePrice + extraPrice;
   const totalProfit = totalPrice - totalCost;
   const margin = totalPrice > 0 ? Math.round((totalProfit / totalPrice) * 100) : 0;
 
   resultEl.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <span><b>${escapeHtml(p.name)} (${escapeHtml(p.baseSizeLabel || 'Size chuẩn')})</b> + ${names.map(escapeHtml).join(' + ')}</span>
+      <span><b>${escapeHtml(p.name)} (${escapeHtml(sizeName)})</b>${names.length ? ` + ${names.map(escapeHtml).join(' + ')}` : ' <span class="text-slate-400">(chưa thêm topping)</span>'}</span>
       <span>
-        Tổng vốn: <b class="text-amber-700">${formatMoney(totalCost)}</b> ·
-        Giá bán: <b class="text-slate-900">${formatMoney(totalPrice)}</b> ·
+        Tổng vốn 1 ly: <b class="text-amber-700">${formatMoney(totalCost)}</b> ·
+        Giá bán: <b class="text-slate-900 text-sm">${formatMoney(totalPrice)}</b> ·
         Lãi: <b class="text-emerald-700">${formatMoney(totalProfit)} (${margin}%)</b>
       </span>
     </div>
@@ -1285,7 +1312,113 @@ export function updateLiveCostCalculation() {
       costTipEl.classList.add('hidden');
     }
   }
+
+  // Cập nhật bộ ghép thử "Chọn dung tích + Nhiều Topping -> Ra giá 1 ly hoàn chỉnh" ngay trong form Thêm Món
+  updateProductModalCupSimulator(totalCost, salePrice, isBatch, rawRecipeCost, extrasCostPerCup, pkgCost, wastePct, targetPct);
 }
+
+let cachedProductSimSizes = [];
+
+function updateProductModalCupSimulator(baseCost, basePrice, isBatch, rawRecipeCost, extrasCostPerCup, pkgCost, wastePct, targetPct) {
+  const sizeSelect = document.getElementById('prod-sim-size-select');
+  const topListEl = document.getElementById('prod-sim-toppings-list');
+  const resEl = document.getElementById('prod-sim-result');
+  if (!sizeSelect || !topListEl || !resEl) return;
+
+  const baseName = document.getElementById('prod-base-size')?.value?.trim() || 'Size mặc định';
+  const yieldVol = Math.max(0, Number(document.getElementById('prod-batch-yield-vol')?.value) || 0);
+  const splitMode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
+  const batchTotalCost = Math.round(rawRecipeCost * (1 + wastePct / 100));
+
+  const sizes = [{ id: 'base', name: baseName, cost: baseCost, price: basePrice }];
+
+  document.querySelectorAll('#variant-rows-container .variant-row').forEach((vRow, idx) => {
+    const vName = vRow.querySelector('.var-name')?.value?.trim() || `Size ${idx + 2}`;
+    const extraPkg = Number(vRow.querySelector('.var-pkg')?.value) || 0;
+    const vPrice = Number(vRow.querySelector('.var-price')?.value) || 0;
+    let vCost = 0;
+    if (isBatch) {
+      let frac = 0;
+      if (splitMode === 'by_count') {
+        const cnt = Math.max(1, Number(vRow.querySelector('.var-portion-cnt')?.value) || 1);
+        frac = 1 / cnt;
+      } else {
+        const vol = Math.max(1, Number(vRow.querySelector('.var-portion-vol')?.value) || 200);
+        frac = yieldVol > 0 ? vol / yieldVol : 0;
+      }
+      vCost = Math.round(batchTotalCost * frac + extrasCostPerCup + pkgCost + extraPkg);
+    } else {
+      const factor = Number(vRow.querySelector('.var-scale')?.value) || 1;
+      vCost = Math.round(rawRecipeCost * factor * (1 + wastePct / 100) + pkgCost + extraPkg);
+    }
+    sizes.push({ id: `var-${idx}`, name: vName, cost: vCost, price: vPrice });
+  });
+
+  cachedProductSimSizes = sizes;
+  const prevVal = sizeSelect.value;
+  sizeSelect.innerHTML = sizes.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (vốn ${formatMoney(s.cost)})</option>`).join('');
+  if (sizes.some(s => s.id === prevVal)) sizeSelect.value = prevVal;
+
+  // Render danh sách checkbox topping (giữ lại trạng thái đang tích)
+  const prevChecked = new Set(Array.from(topListEl.querySelectorAll('input:checked')).map(i => i.value));
+  if (!globalToppings.length) {
+    topListEl.innerHTML = `<span class="text-[11px] text-slate-500">Chưa có topping gọi thêm nào. Bạn có thể tạo ở tab <b>Menu & Giá thành → Topping gọi thêm</b>.</span>`;
+  } else {
+    topListEl.innerHTML = globalToppings.map(t => `
+      <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-purple-200 hover:border-purple-400 cursor-pointer text-[11px]">
+        <input type="checkbox" class="prod-sim-top-cb accent-purple-600" value="${t._id}" ${prevChecked.has(t._id) ? 'checked' : ''} onchange="window.recalcProductModalCupSimulator()">
+        <span class="font-semibold text-slate-800">${escapeHtml(t.name)}</span>
+        <span class="text-purple-700 font-bold">+${Math.round(t.price / 1000)}k</span>
+      </label>
+    `).join('');
+  }
+
+  window.recalcProductModalCupSimulator();
+}
+
+window.recalcProductModalCupSimulator = function() {
+  const sizeSelect = document.getElementById('prod-sim-size-select');
+  const resEl = document.getElementById('prod-sim-result');
+  if (!sizeSelect || !resEl) return;
+
+  const chosen = cachedProductSimSizes.find(s => s.id === sizeSelect.value) || cachedProductSimSizes[0];
+  if (!chosen) return;
+
+  const checkedIds = Array.from(document.querySelectorAll('.prod-sim-top-cb:checked')).map(cb => cb.value);
+  let topCost = 0;
+  let topPrice = 0;
+  const topNames = [];
+  checkedIds.forEach(id => {
+    const t = globalToppings.find(x => x._id === id);
+    if (t) {
+      topCost += t.costPrice || 0;
+      topPrice += t.price || 0;
+      topNames.push(t.name);
+    }
+  });
+
+  const totalCost = chosen.cost + topCost;
+  const totalPrice = chosen.price + topPrice;
+  const profit = totalPrice - totalCost;
+  const margin = totalPrice > 0 ? Math.round((profit / totalPrice) * 100) : 0;
+  const targetPct = Number(document.getElementById('prod-target-cost')?.value) || 30;
+  const suggested = suggestRetailPrice(totalCost, targetPct);
+
+  resEl.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <span class="font-bold text-slate-900">1 ly ${escapeHtml(chosen.name)}</span>${topNames.length ? ` <span class="text-purple-700 font-semibold">+ ${topNames.map(escapeHtml).join(' + ')}</span>` : ''}
+        <div class="text-[11px] text-slate-500 mt-0.5">
+          Vốn nước & bao bì (${formatMoney(chosen.cost)}) ${topCost > 0 ? `+ Vốn topping (${formatMoney(topCost)})` : ''} = <b class="text-amber-700">${formatMoney(totalCost)}</b>
+        </div>
+      </div>
+      <div class="text-right">
+        <div class="text-sm font-extrabold text-emerald-700">Giá bán: ${formatMoney(totalPrice)}</div>
+        <div class="text-[11px] text-slate-600">Lãi: <b class="text-emerald-700">${formatMoney(profit)} (${margin}%)</b> · Gợi ý: <b class="text-blue-700">${formatMoney(suggested)}</b></div>
+      </div>
+    </div>
+  `;
+};
 
 window.openAddProductModal = async function() {
   if (!globalIngredients.length) globalIngredients = await API.getIngredients();
@@ -1985,10 +2118,10 @@ function renderPosProductList(products) {
     const variants = p.variantBreakdowns || [];
     const hasMultipleOptions = variants.length > 1 || !!p.bottlingSummary;
 
-    const toppingBtn = hasToppings && !isOutOfStock ? `
+    const toppingBtn = !isOutOfStock && (hasToppings || hasMultipleOptions) ? `
       <button type="button" onclick="event.stopPropagation(); window.openPosToppingModalForNew('${p._id}', '${escapeHtml(p.baseSizeLabel || '')}')"
-        class="px-2 py-1 rounded-lg text-[11px] font-bold border border-purple-200 bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-800 transition-all" title="Chọn nhiều topping thêm">
-        + Topping
+        class="px-2 py-1 rounded-lg text-[11px] font-bold border border-purple-200 bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-800 transition-all" title="Chọn dung tích / size và nhiều loại topping">
+        ${hasMultipleOptions && hasToppings ? '⚙️ Size + Topping' : '+ Topping'}
       </button>
     ` : '';
 
@@ -2118,7 +2251,7 @@ window.addToCart = function(productId, variantName = '', selectedToppings = []) 
   updateCartUI();
 };
 
-// Mở popup chọn nhiều loại topping cho món mới trên POS
+// Mở popup 2 bước (1. Chọn Dung tích/Size -> 2. Chọn nhiều Topping) cho món mới trên POS
 window.openPosToppingModalForNew = function(productId, variantName = '') {
   const product = globalProducts.find(p => p._id === productId);
   if (!product) return;
@@ -2128,6 +2261,7 @@ window.openPosToppingModalForNew = function(productId, variantName = '') {
     productId,
     variantName: info.resolvedVariant,
     basePrice: info.basePrice,
+    baseCost: info.baseCost,
     displayLabel: info.displayLabel,
     selectedMap: {}
   };
@@ -2135,7 +2269,7 @@ window.openPosToppingModalForNew = function(productId, variantName = '') {
   window.openModal('modal-pos-topping');
 };
 
-// Mở popup thêm/sửa topping cho 1 dòng đã có trong giỏ hàng
+// Mở popup đổi Size / thêm-sửa Topping cho 1 dòng đã có trong giỏ hàng
 window.openPosToppingModalForCart = function(cartKey) {
   const item = globalCart.find(i => i.cartKey === cartKey);
   if (!item) return;
@@ -2148,6 +2282,7 @@ window.openPosToppingModalForCart = function(cartKey) {
     productId: item.productId,
     variantName: item.variantName,
     basePrice: item.basePrice ?? item.price,
+    baseCost: item.baseCost ?? item.cost,
     displayLabel: item.displayLabel,
     selectedMap
   };
@@ -2155,17 +2290,62 @@ window.openPosToppingModalForCart = function(cartKey) {
   window.openModal('modal-pos-topping');
 };
 
+window.selectPosModalVariant = function(variantKey) {
+  if (!posToppingContext) return;
+  const product = globalProducts.find(p => p._id === posToppingContext.productId);
+  if (!product) return;
+  const info = resolveProductVariantInfo(product, variantKey);
+  posToppingContext.variantName = variantKey === '__BOTTLE__' ? '__BOTTLE__' : info.resolvedVariant;
+  posToppingContext.basePrice = info.basePrice;
+  posToppingContext.baseCost = info.baseCost;
+  posToppingContext.displayLabel = info.displayLabel;
+  renderPosToppingPickerModal();
+};
+
 function renderPosToppingPickerModal() {
   const ctx = posToppingContext;
   if (!ctx) return;
 
+  const product = globalProducts.find(p => p._id === ctx.productId);
+  const variants = product?.variantBreakdowns || [];
+  const hasBottle = !!(product && product.bottlingSummary);
+
+  // Bước 1: Render chọn Dung tích / Size ngay đầu popup
+  const sizeWrap = document.getElementById('pos-size-selector-wrap');
+  const sizeSection = document.getElementById('pos-size-selector-section');
+  if (sizeWrap && sizeSection && product) {
+    const sizeBtns = variants.map(v => {
+      const isSelected = ctx.variantName === v.name || (!ctx.variantName && v.isBase);
+      return `
+        <button type="button" onclick="window.selectPosModalVariant('${escapeHtml(v.name)}')"
+          class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${isSelected ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'}">
+          ${escapeHtml(v.name)} · ${Math.round(v.price / 1000)}k
+        </button>
+      `;
+    });
+
+    if (hasBottle) {
+      const b = product.bottlingSummary;
+      const isSelected = ctx.variantName === '__BOTTLE__';
+      sizeBtns.push(`
+        <button type="button" onclick="window.selectPosModalVariant('__BOTTLE__')"
+          class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${isSelected ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-white text-blue-800 border-blue-200 hover:border-blue-400'}">
+          🍾 Chai ${b.bottleVolumeMl}ml · ${Math.round(b.sellPricePerBottle / 1000)}k
+        </button>
+      `);
+    }
+
+    sizeWrap.innerHTML = sizeBtns.join('');
+    sizeSection.classList.toggle('hidden', sizeBtns.length === 0);
+  }
+
   document.getElementById('pos-topping-drink-title').textContent = ctx.displayLabel;
-  document.getElementById('pos-topping-drink-subtitle').textContent = `Giá gốc: ${formatMoney(ctx.basePrice)} · Tích chọn 1 hoặc nhiều loại topping bên dưới`;
-  document.getElementById('btn-confirm-pos-toppings').textContent = ctx.mode === 'edit' ? 'Cập nhật Topping' : 'Thêm món + Topping vào đơn';
+  document.getElementById('pos-topping-drink-subtitle').textContent = `Giá ly chưa topping: ${formatMoney(ctx.basePrice)} (vốn ${formatMoney(ctx.baseCost || 0)})`;
+  document.getElementById('btn-confirm-pos-toppings').textContent = ctx.mode === 'edit' ? 'Cập nhật ly này' : 'Thêm 1 ly vào đơn';
 
   const listEl = document.getElementById('pos-topping-list');
   if (!globalToppings.length) {
-    listEl.innerHTML = '<div class="text-center py-6 text-xs text-slate-400">Chưa có topping nào. Hãy tạo trong tab Menu & Giá thành → Topping gọi thêm.</div>';
+    listEl.innerHTML = '<div class="text-center py-4 text-xs text-slate-400">Chưa có topping gọi thêm nào. Bạn có thể tạo ở tab Menu & Giá thành → Topping gọi thêm.</div>';
   } else {
     listEl.innerHTML = globalToppings.map(t => {
       const qty = ctx.selectedMap[t._id] || 0;
@@ -2174,7 +2354,7 @@ function renderPosToppingPickerModal() {
         <div class="flex items-center justify-between p-2.5 rounded-xl border transition-all ${isSelected ? 'border-purple-400 bg-purple-50/70' : 'border-slate-200 bg-white'}">
           <div class="flex-1 pr-2 cursor-pointer" onclick="window.adjustPosToppingQty('${t._id}', ${isSelected ? 0 : 1}, true)">
             <div class="font-bold text-xs text-slate-900">🍡 ${escapeHtml(t.name)}</div>
-            <div class="text-[11px] text-purple-700 font-semibold">+${formatMoney(t.price)} <span class="text-slate-400 font-normal">(${formatNumber(t.quantity)}${escapeHtml(t.unit)})</span></div>
+            <div class="text-[11px] text-purple-700 font-semibold">+${formatMoney(t.price)} <span class="text-slate-400 font-normal">(${formatNumber(t.quantity)}${escapeHtml(t.unit)} · vốn ${formatMoney(t.costPrice)})</span></div>
           </div>
           <div class="flex items-center gap-1.5">
             <button type="button" onclick="window.adjustPosToppingQty('${t._id}', -1)" class="w-7 h-7 rounded-lg bg-white border border-slate-200 font-bold text-slate-600 hover:bg-slate-100">-</button>
@@ -2186,12 +2366,23 @@ function renderPosToppingPickerModal() {
     }).join('');
   }
 
-  let extra = 0;
+  let extraPrice = 0;
+  let extraCost = 0;
   Object.entries(ctx.selectedMap).forEach(([tid, qty]) => {
     const t = globalToppings.find(x => x._id === tid);
-    if (t && qty > 0) extra += t.price * qty;
+    if (t && qty > 0) {
+      extraPrice += (t.price || 0) * qty;
+      extraCost += (t.costPrice || 0) * qty;
+    }
   });
-  document.getElementById('pos-topping-live-total').textContent = formatMoney(ctx.basePrice + extra);
+
+  const finalPrice = (ctx.basePrice || 0) + extraPrice;
+  const finalCost = (ctx.baseCost || 0) + extraCost;
+  document.getElementById('pos-topping-live-total').textContent = formatMoney(finalPrice);
+  const costEl = document.getElementById('pos-topping-live-cost');
+  const profEl = document.getElementById('pos-topping-live-profit');
+  if (costEl) costEl.textContent = formatMoney(finalCost);
+  if (profEl) profEl.textContent = formatMoney(finalPrice - finalCost);
 }
 
 window.adjustPosToppingQty = function(toppingId, deltaOrVal, isAbsolute = false) {
@@ -2419,9 +2610,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-add-percup-extra-row')?.addEventListener('click', () => window.addPerCupExtraRow());
   document.getElementById('btn-add-subrecipe-row')?.addEventListener('click', () => window.addSubRecipeRow());
 
+  document.getElementById('prod-sim-size-select')?.addEventListener('change', window.recalcProductModalCupSimulator);
+
   // Live calculations in Product modal (both per_cup and batch)
   [
-    'prod-price', 'prod-packaging-cost', 'prod-waste-percent', 'prod-target-cost',
+    'prod-base-size', 'prod-price', 'prod-packaging-cost', 'prod-waste-percent', 'prod-target-cost',
     'prod-batch-yield-vol', 'prod-batch-yield-unit', 'prod-batch-portion-vol', 'prod-batch-portion-count'
   ].forEach(id => {
     document.getElementById(id)?.addEventListener('input', updateLiveCostCalculation);
@@ -2478,9 +2671,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const item = globalCart[idx];
         const topPrice = selectedToppings.reduce((s, t) => s + t.price * t.quantity, 0);
         const topCost = selectedToppings.reduce((s, t) => s + t.cost * t.quantity, 0);
+        item.variantName = ctx.variantName;
+        item.displayLabel = ctx.displayLabel;
+        item.basePrice = ctx.basePrice;
+        item.baseCost = ctx.baseCost;
         item.toppings = selectedToppings;
-        item.price = (item.basePrice ?? item.price) + topPrice;
-        item.cost = (item.baseCost ?? item.cost) + topCost;
+        item.price = ctx.basePrice + topPrice;
+        item.cost = (ctx.baseCost || 0) + topCost;
         item.cartKey = buildCartKey(item.productId, item.variantName, selectedToppings);
       }
       updateCartUI();

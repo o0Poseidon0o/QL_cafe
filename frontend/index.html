@@ -1028,12 +1028,25 @@
         <div class="p-3.5 border border-slate-200 rounded-xl space-y-2.5">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span class="text-xs font-bold text-slate-800">📐 Mở rộng nhiều Size (Ly L, Ly XL, Chai...)</span>
+              <span class="text-xs font-bold text-slate-800">📐 Chia thêm nhiều Dung tích / Size khác (Ly L, Ly XL, Chai...)</span>
               <p id="variant-section-hint" class="text-[11px] text-slate-500">Tự nhân định lượng theo hệ số để tính ngay giá vốn từng size</p>
             </div>
             <div id="variant-quick-btns" class="flex flex-wrap gap-1.5"></div>
           </div>
           <div id="variant-rows-container" class="space-y-2"></div>
+        </div>
+
+        <!-- Bộ ghép thử 1 ly hoàn chỉnh: Chọn Dung tích vừa chia + Nhiều Topping -> Ra giá tiền -->
+        <div class="p-3.5 border border-purple-200 bg-purple-50/50 rounded-xl space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="text-xs font-bold text-purple-900">🍡 Ghép thử 1 ly hoàn chỉnh (Chọn dung tích + Thêm Topping → Ra giá tiền)</span>
+              <p class="text-[11px] text-purple-800/80">Chọn 1 dung tích bạn vừa chia rồi tích thử nhiều loại topping để xem tổng vốn & giá bán 1 ly</p>
+            </div>
+            <select id="prod-sim-size-select" class="px-2.5 py-1.5 text-xs font-bold text-slate-800 bg-white border border-purple-300 rounded-lg focus:outline-none"></select>
+          </div>
+          <div id="prod-sim-toppings-list" class="flex flex-wrap gap-1.5"></div>
+          <div id="prod-sim-result" class="bg-white p-2.5 rounded-xl border border-purple-200 text-xs text-slate-700"></div>
         </div>
 
         <!-- Chế độ Trà Sữa Đóng Chai -->
@@ -1217,30 +1230,46 @@
     </div>
   </div>
 
-  <!-- Modal 8: Chọn nhiều Topping thêm cho món trên POS -->
+  <!-- Modal 8: Chọn Dung tích / Size + Nhiều loại Topping trên POS -->
   <div id="modal-pos-topping" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
     <div class="fixed inset-0 modal-backdrop" onclick="window.closeModal('modal-pos-topping')"></div>
-    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl relative z-10 modal-content max-h-[88vh] flex flex-col">
+    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl relative z-10 modal-content max-h-[90vh] flex flex-col">
       <div class="flex items-start justify-between pb-3 border-b border-slate-100">
         <div>
-          <span class="text-[10px] font-bold uppercase tracking-wider text-purple-600">Chọn nhiều loại topping</span>
-          <h3 id="pos-topping-drink-title" class="text-base font-bold text-slate-900 mt-0.5">Thêm Topping</h3>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-purple-600">Ra món 2 bước: Chọn dung tích → Thêm topping</span>
+          <h3 id="pos-topping-drink-title" class="text-base font-bold text-slate-900 mt-0.5">Chọn Size & Topping</h3>
           <p id="pos-topping-drink-subtitle" class="text-xs text-slate-500"></p>
         </div>
         <button type="button" onclick="window.closeModal('modal-pos-topping')" class="text-slate-400 hover:text-slate-600 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
 
-      <div id="pos-topping-list" class="flex-1 overflow-y-auto py-3 space-y-2 pr-1"></div>
+      <!-- Bước 1: Chọn Dung tích / Size -->
+      <div id="pos-size-selector-section" class="pt-3 pb-2 border-b border-slate-100 space-y-1.5">
+        <div class="text-[11px] font-bold text-slate-700">1. Chọn dung tích / cỡ ly:</div>
+        <div id="pos-size-selector-wrap" class="flex flex-wrap gap-1.5"></div>
+      </div>
 
-      <div class="pt-3 border-t border-slate-100 space-y-2.5">
-        <div class="flex items-center justify-between text-xs bg-slate-50 px-3 py-2 rounded-xl">
-          <span class="text-slate-600 font-medium">Tổng giá 1 ly (đã gồm topping):</span>
-          <span id="pos-topping-live-total" class="text-base font-extrabold text-emerald-700">0 đ</span>
+      <!-- Bước 2: Chọn nhiều Topping -->
+      <div class="pt-2.5 flex-1 overflow-y-auto space-y-2 pr-1">
+        <div class="text-[11px] font-bold text-slate-700">2. Chọn thêm Topping (có thể chọn nhiều loại):</div>
+        <div id="pos-topping-list" class="space-y-2"></div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 space-y-2.5 mt-2">
+        <div class="bg-emerald-50 border border-emerald-200 px-3 py-2.5 rounded-xl space-y-1 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-emerald-900 font-semibold">Tổng tiền khách trả (1 ly):</span>
+            <span id="pos-topping-live-total" class="text-base font-extrabold text-emerald-700">0 đ</span>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-slate-600">
+            <span>Ước tính giá vốn 1 ly: <b id="pos-topping-live-cost" class="text-amber-700">0 đ</b></span>
+            <span>Lãi gộp: <b id="pos-topping-live-profit" class="text-emerald-700">0 đ</b></span>
+          </div>
         </div>
         <div class="flex justify-end gap-2">
           <button type="button" onclick="window.closeModal('modal-pos-topping')" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
           <button type="button" id="btn-confirm-pos-toppings" class="px-5 py-2 text-xs bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-sm">
-            Xác nhận thêm vào đơn
+            Thêm 1 ly vào đơn
           </button>
         </div>
       </div>
