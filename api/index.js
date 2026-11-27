@@ -5,6 +5,7 @@ const connectToDatabase = require('../backend/src/config/db');
 
 const ingredientRoutes = require('../backend/src/routes/ingredientRoutes');
 const productRoutes = require('../backend/src/routes/productRoutes');
+const toppingRoutes = require('../backend/src/routes/toppingRoutes');
 const orderRoutes = require('../backend/src/routes/orderRoutes');
 const transactionRoutes = require('../backend/src/routes/transactionRoutes');
 const reportRoutes = require('../backend/src/routes/reportRoutes');
@@ -29,6 +30,7 @@ app.use(async (req, res, next) => {
 // Routes API
 app.use('/api/ingredients', ingredientRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/toppings', toppingRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/reports', reportRoutes);

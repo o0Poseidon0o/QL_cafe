@@ -29,6 +29,17 @@ const productVariantSchema = new mongoose.Schema({
     min: 0.1,
     default: 1
   },
+  // Dùng cho chế độ "Pha theo mẻ lớn rồi chia ly/chai"
+  portionVolume: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
+  portionCount: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   price: {
     type: Number,
     required: true,
@@ -61,6 +72,40 @@ const productSchema = new mongoose.Schema({
     trim: true,
     default: 'Cà phê'
   },
+  // Chế độ nhập công thức: 'per_cup' (pha trực tiếp 1 ly) | 'batch' (pha cả mẻ lớn rồi chia ly/chai)
+  recipeMode: {
+    type: String,
+    enum: ['per_cup', 'batch'],
+    default: 'per_cup'
+  },
+  // Cấu hình riêng cho chế độ 'batch' (pha theo mẻ lớn)
+  batchYieldVolume: {
+    type: Number,
+    min: 0,
+    default: 2000
+  },
+  batchYieldUnit: {
+    type: String,
+    default: 'ml',
+    trim: true
+  },
+  batchSplitMode: {
+    type: String,
+    enum: ['by_volume', 'by_count'],
+    default: 'by_volume'
+  },
+  batchPortionVolume: {
+    type: Number,
+    min: 0,
+    default: 150
+  },
+  batchPortionCount: {
+    type: Number,
+    min: 0,
+    default: 15
+  },
+  // Thành phần cộng thêm riêng cho từng ly (không bị chia cho cả mẻ: ly nhựa, topping mặc định...)
+  perCupExtras: [recipeItemSchema],
   price: {
     type: Number,
     required: true,

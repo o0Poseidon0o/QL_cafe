@@ -109,6 +109,41 @@ export const API = {
     return result;
   },
 
+  async getToppings() {
+    const res = await fetch(`${API_BASE}/toppings`);
+    if (!res.ok) throw new Error((await res.json()).message || 'Lỗi tải topping');
+    return await res.json();
+  },
+
+  async createTopping(data) {
+    const res = await fetch(`${API_BASE}/toppings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || 'Lỗi thêm topping');
+    return result;
+  },
+
+  async updateTopping(id, data) {
+    const res = await fetch(`${API_BASE}/toppings/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || 'Lỗi sửa topping');
+    return result;
+  },
+
+  async deleteTopping(id) {
+    const res = await fetch(`${API_BASE}/toppings/${id}`, { method: 'DELETE' });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.message || 'Lỗi xóa topping');
+    return result;
+  },
+
   async getOrders(params = {}) {
     const query = new URLSearchParams(params).toString();
     const res = await fetch(`${API_BASE}/orders?${query}`);

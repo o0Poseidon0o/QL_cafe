@@ -1,5 +1,16 @@
 const mongoose = require('mongoose');
 
+const orderItemToppingSchema = new mongoose.Schema({
+  topping: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Topping'
+  },
+  name: { type: String, required: true },
+  price: { type: Number, required: true, default: 0 },
+  cost: { type: Number, default: 0 },
+  quantity: { type: Number, required: true, min: 1, default: 1 }
+}, { _id: false });
+
 const orderItemSchema = new mongoose.Schema({
   product: {
     type: mongoose.Schema.Types.ObjectId,
@@ -9,6 +20,7 @@ const orderItemSchema = new mongoose.Schema({
   productName: { type: String, required: true },
   variantName: { type: String, default: '' },
   scaleFactor: { type: Number, default: 1 },
+  toppings: [orderItemToppingSchema],
   price: { type: Number, required: true },
   cost: { type: Number, default: 0 },
   quantity: { type: Number, required: true, min: 1 },

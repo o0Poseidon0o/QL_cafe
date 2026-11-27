@@ -15,14 +15,13 @@ function formatViNumber(num) {
 
 /**
  * Tạo chuỗi giá quy cách dễ hiểu kiểu Trà Lộc Phát:
- * VD: "305.000đ/1kg", "42.000đ/1 lít", "128.545đ/3.200ml", "49.000đ/30g", "-"
+ * VD: "305.000đ/1kg", "42.000đ/1 lít", "54.000đ/12 miếng", "128.545đ/3.200ml", "-"
  */
 function formatSpecPrice(ing) {
   if (!ing) return '-';
   const costPerUnit = Number(ing.costPerUnit) || 0;
   if (costPerUnit <= 0 && !(ing.purchasePrice > 0)) return '-';
 
-  // Nếu là bán thành phẩm (mẻ nấu)
   if (ing.isSubRecipe && ing.yieldQuantity > 0) {
     const batchTotal = ing.purchasePrice > 0
       ? Math.round(ing.purchasePrice)
@@ -30,7 +29,6 @@ function formatSpecPrice(ing) {
     return `${formatViNumber(batchTotal)}đ/${formatViNumber(ing.yieldQuantity)}${ing.unit}`;
   }
 
-  // Nếu có quy cách đóng gói (VD: 1kg = 1000g, 1 lít = 1000ml, 30g...)
   const rate = Number(ing.conversionRate) || 1;
   const pPrice = ing.purchasePrice > 0
     ? Math.round(ing.purchasePrice)
@@ -53,7 +51,7 @@ function formatSpecPrice(ing) {
 }
 
 /**
- * Tính toán chi tiết 1 mẻ bán thành phẩm (từ danh sách subRecipe đã populate hoặc map)
+ * Tính toán chi tiết 1 mẻ bán thành phẩm
  */
 function computeSubRecipeMetrics(subIng, ingredientMap) {
   const items = [];
@@ -109,7 +107,6 @@ function computeSubRecipeMetrics(subIng, ingredientMap) {
 
 /**
  * Đồng bộ lại giá vốn và kcal cho tất cả bán thành phẩm trong DB
- * (Chạy 2 lượt để hỗ trợ bán thành phẩm lồng nhau 2 cấp an toàn)
  */
 async function syncAllSubRecipes() {
   const allIngredients = await Ingredient.find();
@@ -150,14 +147,21 @@ function suggestRetailPrice(costPrice, targetCostPercent = 30) {
 }
 
 /**
- * Tính toàn bộ bảng giá thành phân tầng (giống Trà Lộc Phát) cho 1 món
+ * Tính toán toàn bộ bảng giá thành (hỗ trợ cả 2 chế độ:
+ * 1) per_cup: Pha trực tiếp 1 ly
+ * 2) batch: Pha theo mẻ lớn (VD: 2.000 ml) rồi chia theo ml/ly HOẶC chia theo số ly/mẻ + phụ liệu riêng từng ly)
  */
 function computeProductCostAndStats(product, ingredientMap = null) {
-  let rawIngredientsCost = 0;
-  let totalKcal = 0;
-  let maxCupsPossible = Infinity;
-  let hasTrackedIngredient = false;
+  const isBatchMode = product.recipeMode === 'batch';
+  const packagingCost = Number(product.packagingCost) || 0;
+  const wastePercent = Number(product.wastePercent) || 0;
+  const targetCostPercent = Number(product.targetCostPercent) || 30;
+  const baseSizeLabel = product.baseSizeLabel || 'Ly 500ml';
+  const baseVolumeMl = Number(product.baseVolumeMl) || 500;
 
+  // 1. Duyệt danh sách recipe chính (1 ly nếu per_cup, hoặc cả 1 mẻ nếu batch)
+  let rawRecipeCost = 0;
+  let rawRecipeKcal = 0;
   const recipeDetails = [];
   const subRecipeBreakdowns = [];
   const seenSubIds = new Set();
@@ -173,17 +177,10 @@ function computeProductCostAndStats(product, ingredientMap = null) {
       const itemCost = Math.round(exactCost);
       const itemKcal = Math.round(qty * (Number(ing.kcalPerUnit) || 0));
 
-      rawIngredientsCost += exactCost;
-      totalKcal += itemKcal;
+      rawRecipeCost += exactCost;
+      rawRecipeKcal += itemKcal;
 
       const trackInv = ing.trackInventory !== false;
-      let cupsFromThisIng = null;
-      if (trackInv) {
-        hasTrackedIngredient = true;
-        cupsFromThisIng = ing.stockQuantity > 0 ? Math.floor(ing.stockQuantity / qty) : 0;
-        if (cupsFromThisIng < maxCupsPossible) maxCupsPossible = cupsFromThisIng;
-      }
-
       recipeDetails.push({
         ingredientId: ing._id,
         name: ing.name,
@@ -195,11 +192,9 @@ function computeProductCostAndStats(product, ingredientMap = null) {
         quantity: qty,
         itemCost,
         kcal: itemKcal,
-        currentStock: ing.stockQuantity,
-        availableCups: cupsFromThisIng
+        currentStock: ing.stockQuantity
       });
 
-      // Nếu là bán thành phẩm -> bóc tách chi tiết mẻ nấu (tầng 1 giống Trà Lộc Phát)
       if (ing.isSubRecipe && ing.yieldQuantity > 0 && !seenSubIds.has(ing._id.toString())) {
         seenSubIds.add(ing._id.toString());
         const metrics = computeSubRecipeMetrics(ing, ingredientMap);
@@ -223,26 +218,245 @@ function computeProductCostAndStats(product, ingredientMap = null) {
     }
   }
 
-  if (!hasTrackedIngredient) {
-    maxCupsPossible = 999;
-  } else if (maxCupsPossible === Infinity) {
-    maxCupsPossible = 0;
+  // 2. Duyệt phần nguyên liệu/topping cố định riêng cho từng ly (perCupExtras - dùng ở chế độ batch)
+  let perCupExtrasCost = 0;
+  let perCupExtrasKcal = 0;
+  const perCupExtraDetails = [];
+
+  if (isBatchMode && Array.isArray(product.perCupExtras) && product.perCupExtras.length > 0) {
+    for (const item of product.perCupExtras) {
+      const ing = item.ingredient;
+      if (!ing || typeof ing !== 'object') continue;
+
+      const qty = Number(item.quantity) || 0;
+      const unitCost = Number(ing.costPerUnit) || 0;
+      const exactCost = qty * unitCost;
+      const itemCost = Math.round(exactCost);
+      const itemKcal = Math.round(qty * (Number(ing.kcalPerUnit) || 0));
+
+      perCupExtrasCost += exactCost;
+      perCupExtrasKcal += itemKcal;
+
+      perCupExtraDetails.push({
+        ingredientId: ing._id,
+        name: ing.name,
+        unit: ing.unit,
+        isSubRecipe: !!ing.isSubRecipe,
+        trackInventory: ing.trackInventory !== false,
+        specPrice: formatSpecPrice(ing),
+        costPerUnit: unitCost,
+        quantity: qty,
+        itemCost,
+        kcal: itemKcal,
+        currentStock: ing.stockQuantity
+      });
+    }
   }
 
-  const packagingCost = Number(product.packagingCost) || 0;
-  const wastePercent = Number(product.wastePercent) || 0;
-  const wasteCost = Math.round(rawIngredientsCost * (wastePercent / 100));
-  const costPrice = Math.round(rawIngredientsCost + wasteCost + packagingCost);
+  // ==================== CHẾ ĐỘ B: PHA THEO MẺ LỚN RỒI CHIA LY/CHAI ====================
+  if (isBatchMode) {
+    const yieldVol = Math.max(0, Number(product.batchYieldVolume) || 0);
+    const yieldUnit = product.batchYieldUnit || 'ml';
+    const splitMode = product.batchSplitMode === 'by_count' ? 'by_count' : 'by_volume';
 
+    const batchWasteCost = Math.round(rawRecipeCost * (wastePercent / 100));
+    const batchTotalCost = Math.round(rawRecipeCost + batchWasteCost);
+    const costPerYieldUnit = yieldVol > 0 ? round4(batchTotalCost / yieldVol) : 0;
+
+    const calcBatchPortion = (label, portionVolInput, portionCountInput, sellPrice, extraPkg = 0, isBase = false) => {
+      let cupsPerBatch = 0;
+      let portionVolume = 0;
+      let leftoverVolume = 0;
+      let fractionOfBatch = 0;
+
+      if (splitMode === 'by_count') {
+        cupsPerBatch = Math.max(1, Number(portionCountInput) || 1);
+        fractionOfBatch = 1 / cupsPerBatch;
+        portionVolume = yieldVol > 0 ? Math.round(yieldVol / cupsPerBatch) : 0;
+        leftoverVolume = 0;
+      } else {
+        portionVolume = Math.max(1, Number(portionVolInput) || 150);
+        if (yieldVol > 0) {
+          cupsPerBatch = Math.floor(yieldVol / portionVolume);
+          leftoverVolume = Math.round(yieldVol - cupsPerBatch * portionVolume);
+          fractionOfBatch = portionVolume / yieldVol;
+        }
+      }
+
+      const liquidCostPerCup = Math.round(batchTotalCost * fractionOfBatch);
+      const totalPkg = packagingCost + extraPkg;
+      const costPrice = Math.round(liquidCostPerCup + perCupExtrasCost + totalPkg);
+      const kcal = Math.round(rawRecipeKcal * fractionOfBatch + perCupExtrasKcal);
+      const price = Number(sellPrice) || 0;
+      const grossProfit = price - costPrice;
+      const profitMargin = price > 0 ? Math.round((grossProfit / price) * 100) : 0;
+      const foodCostPercent = price > 0 ? Math.round((costPrice / price) * 100) : 0;
+      const revenuePerBatch = cupsPerBatch * price;
+      const profitPerBatch = cupsPerBatch * grossProfit;
+
+      return {
+        name: label,
+        volumeMl: portionVolume,
+        portionVolume,
+        portionCount: cupsPerBatch,
+        cupsPerBatch,
+        leftoverVolume,
+        fractionOfBatch: round4(fractionOfBatch),
+        scaleFactor: round4(fractionOfBatch),
+        isBase,
+        price,
+        liquidCostPerCup,
+        extrasCostPerCup: Math.round(perCupExtrasCost),
+        packagingCost: totalPkg,
+        extraPackagingCost: extraPkg,
+        costPrice,
+        kcal,
+        grossProfit,
+        profitMargin,
+        foodCostPercent,
+        revenuePerBatch,
+        profitPerBatch,
+        suggestedPrice: suggestRetailPrice(costPrice, targetCostPercent)
+      };
+    };
+
+    const baseVariant = calcBatchPortion(
+      baseSizeLabel,
+      product.batchPortionVolume || 150,
+      product.batchPortionCount || 15,
+      product.price,
+      0,
+      true
+    );
+
+    const variantBreakdowns = [baseVariant];
+    if (Array.isArray(product.variants) && product.variants.length > 0) {
+      for (const v of product.variants) {
+        const vVol = Number(v.portionVolume) || Number(v.volumeMl) || Math.round((product.batchPortionVolume || 150) * (Number(v.scaleFactor) || 1));
+        const vCount = Number(v.portionCount) || Math.max(1, Math.round((product.batchPortionCount || 15) / (Number(v.scaleFactor) || 1)));
+        variantBreakdowns.push(
+          calcBatchPortion(v.name, vVol, vCount, v.price, Number(v.extraPackagingCost) || 0, false)
+        );
+      }
+    }
+
+    // Tính tồn kho pha được cho size mặc định
+    let maxCupsPossible = Infinity;
+    let hasTrackedIngredient = false;
+    const baseFrac = baseVariant.fractionOfBatch;
+
+    for (const item of recipeDetails) {
+      if (!item.trackInventory) continue;
+      hasTrackedIngredient = true;
+      const perCupQty = item.quantity * baseFrac;
+      const cups = perCupQty > 0 && item.currentStock > 0 ? Math.floor(item.currentStock / perCupQty) : 0;
+      item.availableCups = cups;
+      if (cups < maxCupsPossible) maxCupsPossible = cups;
+    }
+
+    for (const item of perCupExtraDetails) {
+      if (!item.trackInventory) continue;
+      hasTrackedIngredient = true;
+      const cups = item.quantity > 0 && item.currentStock > 0 ? Math.floor(item.currentStock / item.quantity) : 0;
+      item.availableCups = cups;
+      if (cups < maxCupsPossible) maxCupsPossible = cups;
+    }
+
+    if (!hasTrackedIngredient) maxCupsPossible = 999;
+    else if (maxCupsPossible === Infinity) maxCupsPossible = 0;
+
+    // Tính chế độ Đóng chai nếu bật
+    let bottlingSummary = null;
+    if (product.bottlingConfig && product.bottlingConfig.enabled && yieldVol > 0) {
+      const bottleVol = Number(product.bottlingConfig.bottleVolumeMl) || 330;
+      const bottlePkg = Number(product.bottlingConfig.bottleCost) || 0;
+      const sellPrice = Number(product.bottlingConfig.sellPricePerBottle) || 0;
+      const frac = bottleVol / yieldVol;
+      const liquidCostPerBottle = Math.round(batchTotalCost * frac);
+      const costPerBottle = liquidCostPerBottle + bottlePkg;
+      const profitPerBottle = sellPrice - costPerBottle;
+      const marginPerBottle = sellPrice > 0 ? Math.round((profitPerBottle / sellPrice) * 100) : 0;
+      const bottlesPerBatch = Math.floor(yieldVol / bottleVol);
+      const leftoverMl = Math.round(yieldVol - bottlesPerBatch * bottleVol);
+
+      bottlingSummary = {
+        bottleVolumeMl: bottleVol,
+        bottleCost: bottlePkg,
+        liquidCostPerBottle,
+        costPerBottle,
+        sellPricePerBottle: sellPrice,
+        profitPerBottle,
+        marginPerBottle,
+        suggestedPrice: suggestRetailPrice(costPerBottle, targetCostPercent),
+        bottlesPerBatch,
+        leftoverMl,
+        mainSubName: `Mẻ ${formatViNumber(yieldVol)}${yieldUnit}`,
+        profitPerBatch: bottlesPerBatch * profitPerBottle
+      };
+    }
+
+    return {
+      ...product.toObject(),
+      recipeMode: 'batch',
+      batchSummary: {
+        yieldVolume: yieldVol,
+        yieldUnit,
+        splitMode,
+        rawBatchCost: Math.round(rawRecipeCost),
+        wasteCost: batchWasteCost,
+        batchTotalCost,
+        costPerYieldUnit,
+        costPer100: Math.round(costPerYieldUnit * 100),
+        cupsPerBatch: baseVariant.cupsPerBatch,
+        portionVolume: baseVariant.portionVolume,
+        leftoverVolume: baseVariant.leftoverVolume,
+        revenuePerBatch: baseVariant.revenuePerBatch,
+        profitPerBatch: baseVariant.profitPerBatch
+      },
+      rawIngredientsCost: baseVariant.liquidCostPerCup + Math.round(perCupExtrasCost),
+      wasteCost: Math.round(batchWasteCost * baseFrac),
+      packagingCost,
+      costPrice: baseVariant.costPrice,
+      totalKcal: baseVariant.kcal,
+      grossProfit: baseVariant.grossProfit,
+      profitMargin: baseVariant.profitMargin,
+      foodCostPercent: baseVariant.foodCostPercent,
+      targetCostPercent,
+      suggestedPrice: baseVariant.suggestedPrice,
+      maxCupsPossible,
+      hasTrackedIngredient,
+      recipeDetails,
+      perCupExtraDetails,
+      subRecipeBreakdowns,
+      variantBreakdowns,
+      bottlingSummary
+    };
+  }
+
+  // ==================== CHẾ ĐỘ A: PHA TRỰC TIẾP TỪNG LY (PER_CUP) ====================
+  let maxCupsPossible = Infinity;
+  let hasTrackedIngredient = false;
+
+  for (const item of recipeDetails) {
+    if (!item.trackInventory) {
+      item.availableCups = null;
+      continue;
+    }
+    hasTrackedIngredient = true;
+    const cups = item.quantity > 0 && item.currentStock > 0 ? Math.floor(item.currentStock / item.quantity) : 0;
+    item.availableCups = cups;
+    if (cups < maxCupsPossible) maxCupsPossible = cups;
+  }
+
+  if (!hasTrackedIngredient) maxCupsPossible = 999;
+  else if (maxCupsPossible === Infinity) maxCupsPossible = 0;
+
+  const wasteCost = Math.round(rawRecipeCost * (wastePercent / 100));
+  const costPrice = Math.round(rawRecipeCost + wasteCost + packagingCost);
   const grossProfit = product.price - costPrice;
   const profitMargin = product.price > 0 ? Math.round((grossProfit / product.price) * 100) : 0;
   const foodCostPercent = product.price > 0 ? Math.round((costPrice / product.price) * 100) : 0;
-  const targetCostPercent = Number(product.targetCostPercent) || 30;
   const suggestedPrice = suggestRetailPrice(costPrice, targetCostPercent);
-
-  // Tính bảng so sánh nhiều Size (500ml / 700ml / 1000ml...)
-  const baseSizeLabel = product.baseSizeLabel || 'Ly 500ml';
-  const baseVolumeMl = Number(product.baseVolumeMl) || 500;
 
   const variantBreakdowns = [
     {
@@ -253,7 +467,7 @@ function computeProductCostAndStats(product, ingredientMap = null) {
       price: product.price,
       packagingCost,
       costPrice,
-      kcal: totalKcal,
+      kcal: rawRecipeKcal,
       grossProfit,
       profitMargin,
       foodCostPercent,
@@ -266,9 +480,9 @@ function computeProductCostAndStats(product, ingredientMap = null) {
       const factor = Number(v.scaleFactor) || 1;
       const vExtraPkg = Number(v.extraPackagingCost) || 0;
       const vPkg = packagingCost + vExtraPkg;
-      const vIngCost = rawIngredientsCost * factor * (1 + wastePercent / 100);
+      const vIngCost = rawRecipeCost * factor * (1 + wastePercent / 100);
       const vCost = Math.round(vIngCost + vPkg);
-      const vKcal = Math.round(totalKcal * factor);
+      const vKcal = Math.round(rawRecipeKcal * factor);
       const vPrice = Number(v.price) || 0;
       const vProfit = vPrice - vCost;
       const vMargin = vPrice > 0 ? Math.round((vProfit / vPrice) * 100) : 0;
@@ -292,21 +506,18 @@ function computeProductCostAndStats(product, ingredientMap = null) {
     }
   }
 
-  // Tính chế độ Trà sữa đóng chai (nếu bật)
   let bottlingSummary = null;
   if (product.bottlingConfig && product.bottlingConfig.enabled) {
     const bottleVol = Number(product.bottlingConfig.bottleVolumeMl) || 330;
     const bottlePkg = Number(product.bottlingConfig.bottleCost) || 0;
     const sellPrice = Number(product.bottlingConfig.sellPricePerBottle) || 0;
 
-    // Quy đổi phần nguyên liệu lỏng/cốt theo tỷ lệ dung tích chai so với ly chuẩn
     const liquidRatio = baseVolumeMl > 0 ? bottleVol / baseVolumeMl : 1;
-    const liquidCostPerBottle = Math.round(rawIngredientsCost * liquidRatio * (1 + wastePercent / 100));
+    const liquidCostPerBottle = Math.round(rawRecipeCost * liquidRatio * (1 + wastePercent / 100));
     const costPerBottle = liquidCostPerBottle + bottlePkg;
     const profitPerBottle = sellPrice - costPerBottle;
     const marginPerBottle = sellPrice > 0 ? Math.round((profitPerBottle / sellPrice) * 100) : 0;
 
-    // Nếu món có dùng bán thành phẩm dạng ml (nước cốt chính), ước tính số chai đóng được từ 1 mẻ cốt
     const mainLiquidSub = subRecipeBreakdowns.find(s => (s.unit || '').toLowerCase() === 'ml' && s.usedQuantityInDrink > 0);
     let bottlesPerBatch = null;
     let leftoverMl = null;
@@ -338,11 +549,13 @@ function computeProductCostAndStats(product, ingredientMap = null) {
 
   return {
     ...product.toObject(),
-    rawIngredientsCost: Math.round(rawIngredientsCost),
+    recipeMode: 'per_cup',
+    batchSummary: null,
+    rawIngredientsCost: Math.round(rawRecipeCost),
     wasteCost,
     packagingCost,
     costPrice,
-    totalKcal,
+    totalKcal: rawRecipeKcal,
     grossProfit,
     profitMargin,
     foodCostPercent,
@@ -351,6 +564,7 @@ function computeProductCostAndStats(product, ingredientMap = null) {
     maxCupsPossible,
     hasTrackedIngredient,
     recipeDetails,
+    perCupExtraDetails: [],
     subRecipeBreakdowns,
     variantBreakdowns,
     bottlingSummary

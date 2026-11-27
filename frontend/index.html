@@ -190,20 +190,43 @@
       </div>
     </div>
 
-    <!-- TAB 2: MENU & COSTING -->
+    <!-- TAB 2: MENU & COSTING + TOPPINGS -->
     <div id="tab-costing" class="hidden space-y-6">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 class="text-2xl font-bold text-slate-900">Bảng Tính Giá Thành & Công Thức 2 Tầng</h1>
-          <p class="text-sm text-slate-500">Tự động bóc tách bán thành phẩm (nước cốt, sốt, topping), so sánh nhiều size (500/700/1000ml) & đóng chai</p>
+          <h1 class="text-2xl font-bold text-slate-900">Menu, Công Thức Pha Mẻ & Topping Gọi Thêm</h1>
+          <p class="text-sm text-slate-500">Hỗ trợ pha từng ly hoặc pha theo mẻ lớn (2L, 3L...) chia nhỏ bán từng ly/chai & chọn nhiều loại topping</p>
         </div>
         <div class="flex flex-wrap gap-2.5">
+          <button id="btn-open-add-topping" class="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm transition-all">
+            <i data-lucide="plus" class="w-4 h-4"></i> Thêm Topping Gọi Thêm
+          </button>
           <button id="btn-open-add-product" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm transition-all">
             <i data-lucide="plus-circle" class="w-4 h-4"></i> Thêm Món Nước Mới
           </button>
         </div>
       </div>
-      <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+      <!-- Sub-tabs: Món nước vs Topping gọi thêm -->
+      <div class="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-2xs w-fit">
+        <button type="button" id="subtab-btn-products" onclick="window.switchCostingSubTab('products')" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white shadow-xs transition-all flex items-center gap-1.5">
+          <span>🧋</span> Món nước & Giá thành <span id="badge-count-products" class="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">0</span>
+        </button>
+        <button type="button" id="subtab-btn-toppings" onclick="window.switchCostingSubTab('toppings')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all flex items-center gap-1.5">
+          <span>🍡</span> Topping gọi thêm (Chọn nhiều) <span id="badge-count-toppings" class="px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px]">0</span>
+        </button>
+      </div>
+
+      <div id="costing-subtab-products">
+        <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </div>
+
+      <div id="costing-subtab-toppings" class="hidden space-y-4">
+        <div class="bg-purple-50/80 border border-purple-200 rounded-2xl p-4 text-xs text-purple-900">
+          <b>💡 Cách dùng Topping gọi thêm:</b> Khai báo các loại topping hay bán kèm (<i>Trân châu đen +5k, Pudding +7k, Kem cheese +8k, Đào miếng +7k...</i>) và gắn với nguyên liệu trong kho. Khi bán ở <b>POS</b>, nhân viên có thể <b>tích chọn nhiều loại topping cùng lúc</b> cho 1 ly — hệ thống tự cộng doanh thu, giá vốn và trừ đúng tồn kho của từng topping!
+        </div>
+        <div id="toppings-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
     </div>
 
     <!-- TAB 3: INVENTORY & SUB-RECIPES -->
@@ -808,11 +831,24 @@
 
       <form id="form-product" class="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
         <input type="hidden" id="prod-id">
+        <input type="hidden" id="prod-recipe-mode" value="per_cup">
+
+        <!-- Chọn chế độ nhập công thức: Pha từng ly vs Pha cả mẻ lớn rồi chia ly/chai -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button type="button" id="prod-mode-percup-btn" onclick="window.setProductRecipeMode('per_cup')" class="p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-left transition-all">
+            <div class="font-bold text-xs text-emerald-900">🥤 Pha trực tiếp từng ly</div>
+            <p class="text-[11px] text-slate-600 mt-0.5">Nhập định lượng cho 1 ly (Cà phê phin/máy, Bạc xỉu, Nước ép...)</p>
+          </button>
+          <button type="button" id="prod-mode-batch-btn" onclick="window.setProductRecipeMode('batch')" class="p-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-left transition-all">
+            <div class="font-bold text-xs text-amber-900">🫗 Pha theo mẻ lớn rồi chia ly / chai</div>
+            <p class="text-[11px] text-slate-600 mt-0.5">Nhập công thức cả mẻ 2L, 3L... rồi chia nhỏ ra từng ly hoặc chai</p>
+          </button>
+        </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div class="sm:col-span-2">
             <label class="block text-xs font-semibold text-slate-700 mb-1">Tên món nước <span class="text-rose-500">*</span></label>
-            <input type="text" id="prod-name" required placeholder="VD: Trà Sữa Ôlong Bắp Non" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <input type="text" id="prod-name" required placeholder="VD: Trà Sữa Truyền Thống" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Danh mục</label>
@@ -828,7 +864,7 @@
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Icon (Emoji)</label>
-            <input type="text" id="prod-image" value="🥤" placeholder="🌽 🧋 ☕" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <input type="text" id="prod-image" value="🥤" placeholder="🧋 ☕ 🍑" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none">
           </div>
         </div>
 
@@ -838,14 +874,14 @@
             <input type="text" id="prod-base-size" value="Ly 500ml" placeholder="VD: Ly M (500ml)" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl">
             <span class="text-[10px] text-slate-400">Tên hiển thị (VD: Ly M, Chai 330ml)</span>
           </div>
-          <div>
+          <div id="prod-base-vol-wrap">
             <label class="block text-xs font-semibold text-slate-700 mb-1">Dung tích 1 ly (ml)</label>
             <input type="number" id="prod-base-vol" value="500" min="50" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl">
             <span class="text-[10px] text-slate-400">Dùng để quy đổi nếu bán đóng chai</span>
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Giá bán lẻ 1 ly (đ) <span class="text-rose-500">*</span></label>
-            <input type="number" id="prod-price" required min="0" step="500" placeholder="38000" class="w-full px-3 py-2 text-sm font-bold text-slate-900 border border-slate-200 rounded-xl">
+            <input type="number" id="prod-price" required min="0" step="500" placeholder="25000" class="w-full px-3 py-2 text-sm font-bold text-slate-900 border border-slate-200 rounded-xl">
             <span class="text-[10px] text-slate-400">Giá thu khách cho size mặc định</span>
           </div>
           <div>
@@ -857,20 +893,93 @@
 
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Mô tả món</label>
-          <input type="text" id="prod-description" placeholder="VD: Trà Ôlong thanh đậm kết hợp sữa yến mạch và bắp non" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl">
+          <input type="text" id="prod-description" placeholder="VD: Trà đậm vị hòa quyện sữa béo..." class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl">
         </div>
 
-        <!-- Định lượng nguyên liệu / bán thành phẩm -->
+        <!-- Định lượng nguyên liệu (1 ly HOẶC cả mẻ lớn) -->
         <div class="pt-1">
           <div class="flex justify-between items-center mb-2">
-            <label class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <i data-lucide="scale" class="w-4 h-4 text-emerald-600"></i> Định lượng cho Size chuẩn
+            <label id="prod-recipe-section-label" class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="scale" class="w-4 h-4 text-emerald-600"></i> Định lượng nguyên liệu cho 1 ly
             </label>
             <button type="button" id="btn-add-recipe-row" class="text-xs text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
               <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Thêm thành phần
             </button>
           </div>
           <div id="recipe-rows-container" class="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50"></div>
+        </div>
+
+        <!-- KHỐI CẤU HÌNH CHIA MẺ LỚN -> TỪNG LY (chỉ hiện khi chọn chế độ batch) -->
+        <div id="prod-batch-config-section" class="hidden space-y-3 p-4 bg-amber-50/80 border border-amber-200 rounded-2xl">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="text-xs font-extrabold text-amber-900 flex items-center gap-1.5">
+              <span>🫗</span> Cách chia mẻ lớn này ra bán từng ly / chai
+            </div>
+            <span id="batch-live-unit-cost-pill" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white text-amber-800 border border-amber-200">
+              Tổng mẻ: 0 đ
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-800 mb-1">Cả mẻ pha xong thu được</label>
+              <div class="flex items-center">
+                <input type="number" id="prod-batch-yield-vol" min="1" step="any" value="2000" placeholder="VD: 2000" class="w-full px-2.5 py-2 text-sm font-extrabold text-amber-800 border border-amber-300 rounded-l-xl bg-white">
+                <select id="prod-batch-yield-unit" class="px-2 py-2 text-xs font-bold bg-amber-100 text-amber-900 border border-l-0 border-amber-300 rounded-r-xl">
+                  <option value="ml">ml</option>
+                  <option value="g">g</option>
+                </select>
+              </div>
+              <span class="text-[10px] text-slate-500">VD: 2 lít = 2000 ml</span>
+            </div>
+
+            <div class="sm:col-span-2 space-y-2">
+              <label class="block text-[11px] font-bold text-slate-800">Kiểu chia cho size mặc định</label>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 p-2 rounded-xl bg-white border border-amber-200 cursor-pointer text-xs">
+                  <input type="radio" name="prod-batch-split-mode" value="by_volume" checked class="accent-amber-600">
+                  <span class="font-semibold text-slate-800">Theo lượng rót mỗi ly (ml)</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 rounded-xl bg-white border border-amber-200 cursor-pointer text-xs">
+                  <input type="radio" name="prod-batch-split-mode" value="by_count" class="accent-amber-600">
+                  <span class="font-semibold text-slate-800">Gõ thẳng số ly thu được</span>
+                </label>
+              </div>
+
+              <div id="batch-split-by-volume-wrap" class="flex items-center gap-2">
+                <label class="text-xs font-semibold text-slate-700 whitespace-nowrap">Mỗi ly rót:</label>
+                <input type="number" id="prod-batch-portion-vol" min="1" step="any" value="150" class="w-28 px-2.5 py-1.5 text-sm font-extrabold text-emerald-700 border border-slate-300 rounded-xl bg-white">
+                <span class="text-xs font-semibold text-slate-600">ml / ly</span>
+                <span id="batch-split-vol-result" class="text-xs font-bold text-amber-900 ml-auto">→ 13 ly / mẻ</span>
+              </div>
+
+              <div id="batch-split-by-count-wrap" class="hidden flex items-center gap-2">
+                <label class="text-xs font-semibold text-slate-700 whitespace-nowrap">1 mẻ chia đúng:</label>
+                <input type="number" id="prod-batch-portion-count" min="1" step="1" value="15" class="w-28 px-2.5 py-1.5 text-sm font-extrabold text-emerald-700 border border-slate-300 rounded-xl bg-white">
+                <span class="text-xs font-semibold text-slate-600">ly / mẻ</span>
+                <span id="batch-split-count-result" class="text-xs font-bold text-amber-900 ml-auto">→ ~133 ml / ly</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nguyên liệu / Topping cố định thêm riêng cho từng ly (KHÔNG chia cho mẻ) -->
+          <div class="pt-2 border-t border-amber-200/80 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span class="text-xs font-bold text-slate-800">🧋 Topping mặc định & Bao bì cộng riêng cho TỪNG LY (tùy chọn)</span>
+                <p class="text-[10px] text-slate-500">Phần này cộng nguyên vào giá vốn mỗi ly, không bị chia cho cả mẻ (VD: 1 ly nhựa, 1 ống hút, 2 miếng đào cố định)</p>
+              </div>
+              <button type="button" id="btn-add-percup-extra-row" class="text-[11px] font-bold text-amber-800 hover:text-amber-950 bg-white px-2.5 py-1 rounded-lg border border-amber-300 flex items-center gap-1">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Thêm phụ liệu / ly
+              </button>
+            </div>
+            <div id="percup-extras-container" class="space-y-2"></div>
+          </div>
+
+          <div id="batch-profit-banner" class="bg-white p-2.5 rounded-xl border border-amber-200 text-xs text-slate-700 flex flex-wrap items-center justify-between gap-2">
+            <span>Ước tính hiệu quả cả mẻ:</span>
+            <span class="font-extrabold text-emerald-700">0 đ doanh thu · Lãi 0 đ / mẻ</span>
+          </div>
         </div>
 
         <!-- Bao bì gộp & Hao hụt pha chế -->
@@ -919,14 +1028,10 @@
         <div class="p-3.5 border border-slate-200 rounded-xl space-y-2.5">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span class="text-xs font-bold text-slate-800">📐 Mở rộng nhiều Size (700ml / 1000ml...)</span>
-              <p class="text-[11px] text-slate-500">Tự nhân định lượng theo hệ số để tính ngay giá vốn từng size</p>
+              <span class="text-xs font-bold text-slate-800">📐 Mở rộng nhiều Size (Ly L, Ly XL, Chai...)</span>
+              <p id="variant-section-hint" class="text-[11px] text-slate-500">Tự nhân định lượng theo hệ số để tính ngay giá vốn từng size</p>
             </div>
-            <div class="flex flex-wrap gap-1.5">
-              <button type="button" onclick="window.addProductVariantRow('Ly 700ml', 700, 1.4, '', 600)" class="px-2 py-1 text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200">+ Size 700ml (x1.4)</button>
-              <button type="button" onclick="window.addProductVariantRow('Ly 1000ml', 1000, 2.0, '', 1900)" class="px-2 py-1 text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200">+ Size 1000ml (x2.0)</button>
-              <button type="button" onclick="window.addProductVariantRow('', '', 1.2, '', 0)" class="px-2 py-1 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg">+ Size tùy chỉnh</button>
-            </div>
+            <div id="variant-quick-btns" class="flex flex-wrap gap-1.5"></div>
           </div>
           <div id="variant-rows-container" class="space-y-2"></div>
         </div>
@@ -1043,6 +1148,102 @@
           <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl">Tạo Phiếu</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal 7: Thêm / Sửa Topping Gọi Thêm (Multi-select Add-ons) -->
+  <div id="modal-topping" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+    <div class="fixed inset-0 modal-backdrop" onclick="window.closeModal('modal-topping')"></div>
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative z-10 modal-content">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <div>
+          <h3 id="modal-topping-title" class="text-lg font-bold text-slate-900">Thêm Topping Gọi Thêm</h3>
+          <p class="text-xs text-slate-500">Khách có thể chọn nhiều loại topping cùng lúc khi đặt món</p>
+        </div>
+        <button type="button" onclick="window.closeModal('modal-topping')" class="text-slate-400 hover:text-slate-600 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form id="form-topping" class="space-y-4">
+        <input type="hidden" id="topping-id">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Tên topping bán cho khách <span class="text-rose-500">*</span></label>
+          <input type="text" id="topping-name" required placeholder="VD: Trân châu đen, Kem cheese, Đào miếng..." class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Liên kết nguyên liệu / bán thành phẩm trong kho <span class="text-rose-500">*</span></label>
+          <select id="topping-ingredient" required class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none"></select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Định lượng 1 phần thêm <span class="text-rose-500">*</span></label>
+            <div class="flex items-center">
+              <input type="number" id="topping-qty" required min="0.01" step="any" placeholder="VD: 40" class="w-full px-2.5 py-2 text-sm font-bold border border-slate-200 rounded-l-xl">
+              <span id="topping-unit-label" class="px-2.5 py-2 text-xs font-bold bg-slate-100 text-slate-600 border border-l-0 border-slate-200 rounded-r-xl">g</span>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Giá bán thêm (đ) <span class="text-rose-500">*</span></label>
+            <input type="number" id="topping-price" required min="0" step="500" placeholder="VD: 5000" class="w-full px-3 py-2 text-sm font-extrabold text-purple-700 border border-slate-200 rounded-xl">
+          </div>
+        </div>
+
+        <div class="p-3 bg-purple-50 border border-purple-200 rounded-xl grid grid-cols-3 gap-2 text-center text-xs">
+          <div>
+            <span class="text-[10px] text-slate-500 block">Giá vốn / phần</span>
+            <span id="topping-preview-cost" class="font-extrabold text-amber-700">0 đ</span>
+          </div>
+          <div>
+            <span class="text-[10px] text-slate-500 block">Lãi gộp / phần</span>
+            <span id="topping-preview-profit" class="font-extrabold text-emerald-700">0 đ</span>
+          </div>
+          <div>
+            <span class="text-[10px] text-slate-500 block">Biên lãi</span>
+            <span id="topping-preview-margin" class="font-extrabold text-purple-700">0%</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Ghi chú</label>
+          <input type="text" id="topping-notes" placeholder="VD: 1 vá tiêu chuẩn ~40g" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl">
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="window.closeModal('modal-topping')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
+          <button type="submit" class="px-5 py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-sm">Lưu Topping</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 8: Chọn nhiều Topping thêm cho món trên POS -->
+  <div id="modal-pos-topping" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+    <div class="fixed inset-0 modal-backdrop" onclick="window.closeModal('modal-pos-topping')"></div>
+    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl relative z-10 modal-content max-h-[88vh] flex flex-col">
+      <div class="flex items-start justify-between pb-3 border-b border-slate-100">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-purple-600">Chọn nhiều loại topping</span>
+          <h3 id="pos-topping-drink-title" class="text-base font-bold text-slate-900 mt-0.5">Thêm Topping</h3>
+          <p id="pos-topping-drink-subtitle" class="text-xs text-slate-500"></p>
+        </div>
+        <button type="button" onclick="window.closeModal('modal-pos-topping')" class="text-slate-400 hover:text-slate-600 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div id="pos-topping-list" class="flex-1 overflow-y-auto py-3 space-y-2 pr-1"></div>
+
+      <div class="pt-3 border-t border-slate-100 space-y-2.5">
+        <div class="flex items-center justify-between text-xs bg-slate-50 px-3 py-2 rounded-xl">
+          <span class="text-slate-600 font-medium">Tổng giá 1 ly (đã gồm topping):</span>
+          <span id="pos-topping-live-total" class="text-base font-extrabold text-emerald-700">0 đ</span>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="window.closeModal('modal-pos-topping')" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">Hủy</button>
+          <button type="button" id="btn-confirm-pos-toppings" class="px-5 py-2 text-xs bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-sm">
+            Xác nhận thêm vào đơn
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

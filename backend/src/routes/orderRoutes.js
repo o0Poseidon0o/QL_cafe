@@ -3,6 +3,7 @@ const router = express.Router();
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const Ingredient = require('../models/Ingredient');
+const Topping = require('../models/Topping');
 const Transaction = require('../models/Transaction');
 
 router.get('/', async (req, res) => {
@@ -14,14 +15,39 @@ router.get('/', async (req, res) => {
   }
 });
 
+function addDeduction(map, ingredientDoc, qtyNeeded) {
+  if (!ingredientDoc || ingredientDoc.trackInventory === false || qtyNeeded <= 0) return;
+  const ingId = ingredientDoc._id.toString();
+  if (!map.has(ingId)) {
+    map.set(ingId, { ingredient: ingredientDoc, quantityNeeded: 0 });
+  }
+  map.get(ingId).quantityNeeded = Math.round((map.get(ingId).quantityNeeded + qtyNeeded) * 1000) / 1000;
+}
+
 router.post('/', async (req, res) => {
   try {
     const { items, paymentMethod = 'cash', customerNote = '' } = req.body;
     if (!items || !items.length) return res.status(400).json({ message: 'Đơn hàng trống' });
 
     const productIds = items.map(i => i.productId);
-    const products = await Product.find({ _id: { $in: productIds } }).populate('recipe.ingredient');
+    const allToppingIds = [];
+    items.forEach(i => {
+      if (Array.isArray(i.toppings)) {
+        i.toppings.forEach(t => { if (t.toppingId) allToppingIds.push(t.toppingId); });
+      }
+    });
+
+    const [products, toppings] = await Promise.all([
+      Product.find({ _id: { $in: productIds } })
+        .populate('recipe.ingredient')
+        .populate('perCupExtras.ingredient'),
+      allToppingIds.length
+        ? Topping.find({ _id: { $in: allToppingIds } }).populate('ingredient')
+        : Promise.resolve([])
+    ]);
+
     const productMap = new Map(products.map(p => [p._id.toString(), p]));
+    const toppingMap = new Map(toppings.map(t => [t._id.toString(), t]));
 
     const ingredientDeductions = new Map();
     let totalAmount = 0;
@@ -34,68 +60,143 @@ router.post('/', async (req, res) => {
       const quantity = Number(item.quantity);
       if (quantity <= 0) continue;
 
-      // Xác định size / biến thể (nếu chọn size L / XL / Chai)
+      const isBatchMode = product.recipeMode === 'batch';
       let variantName = product.baseSizeLabel || '';
-      let scaleFactor = 1;
       let unitSellPrice = product.price;
       let unitPkgCost = Number(product.packagingCost) || 0;
+      let recipeMultiplier = 1; // Hệ số nhân vào `product.recipe` (tỷ lệ mẻ nếu batch, hoặc scaleFactor nếu per_cup)
+      let includePerCupExtras = isBatchMode;
 
-      if (item.variantName && item.variantName !== product.baseSizeLabel) {
+      if (isBatchMode) {
+        const yieldVol = Math.max(1, Number(product.batchYieldVolume) || 2000);
+        const splitMode = product.batchSplitMode === 'by_count' ? 'by_count' : 'by_volume';
+
         if (item.variantName === '__BOTTLE__' && product.bottlingConfig && product.bottlingConfig.enabled) {
-          const baseVol = Number(product.baseVolumeMl) || 500;
           const bVol = Number(product.bottlingConfig.bottleVolumeMl) || 330;
           variantName = `Chai ${bVol}ml`;
-          scaleFactor = baseVol > 0 ? bVol / baseVol : 1;
+          recipeMultiplier = bVol / yieldVol;
           unitSellPrice = Number(product.bottlingConfig.sellPricePerBottle) || product.price;
           unitPkgCost = Number(product.bottlingConfig.bottleCost) || 0;
-        } else if (Array.isArray(product.variants)) {
+          includePerCupExtras = false;
+        } else if (item.variantName && item.variantName !== product.baseSizeLabel && Array.isArray(product.variants)) {
           const matchedVariant = product.variants.find(v => v.name === item.variantName);
           if (matchedVariant) {
             variantName = matchedVariant.name;
-            scaleFactor = Number(matchedVariant.scaleFactor) || 1;
             unitSellPrice = Number(matchedVariant.price) || product.price;
             unitPkgCost = (Number(product.packagingCost) || 0) + (Number(matchedVariant.extraPackagingCost) || 0);
+            if (splitMode === 'by_count') {
+              const pCount = Math.max(1, Number(matchedVariant.portionCount) || 1);
+              recipeMultiplier = 1 / pCount;
+            } else {
+              const pVol = Number(matchedVariant.portionVolume) || Number(matchedVariant.volumeMl) || (product.batchPortionVolume || 150);
+              recipeMultiplier = pVol / yieldVol;
+            }
+          } else {
+            recipeMultiplier = splitMode === 'by_count'
+              ? 1 / Math.max(1, Number(product.batchPortionCount) || 1)
+              : (Number(product.batchPortionVolume) || 150) / yieldVol;
+          }
+        } else {
+          recipeMultiplier = splitMode === 'by_count'
+            ? 1 / Math.max(1, Number(product.batchPortionCount) || 1)
+            : (Number(product.batchPortionVolume) || 150) / yieldVol;
+        }
+      } else {
+        if (item.variantName && item.variantName !== product.baseSizeLabel) {
+          if (item.variantName === '__BOTTLE__' && product.bottlingConfig && product.bottlingConfig.enabled) {
+            const baseVol = Number(product.baseVolumeMl) || 500;
+            const bVol = Number(product.bottlingConfig.bottleVolumeMl) || 330;
+            variantName = `Chai ${bVol}ml`;
+            recipeMultiplier = baseVol > 0 ? bVol / baseVol : 1;
+            unitSellPrice = Number(product.bottlingConfig.sellPricePerBottle) || product.price;
+            unitPkgCost = Number(product.bottlingConfig.bottleCost) || 0;
+          } else if (Array.isArray(product.variants)) {
+            const matchedVariant = product.variants.find(v => v.name === item.variantName);
+            if (matchedVariant) {
+              variantName = matchedVariant.name;
+              recipeMultiplier = Number(matchedVariant.scaleFactor) || 1;
+              unitSellPrice = Number(matchedVariant.price) || product.price;
+              unitPkgCost = (Number(product.packagingCost) || 0) + (Number(matchedVariant.extraPackagingCost) || 0);
+            }
           }
         }
       }
 
-      let rawIngCostPerUnit = 0;
-      if (product.recipe && product.recipe.length > 0) {
-        for (const r of product.recipe) {
-          if (!r.ingredient) continue;
-          const ingId = r.ingredient._id.toString();
-          const qtyForOne = r.quantity * scaleFactor;
-          rawIngCostPerUnit += qtyForOne * (r.ingredient.costPerUnit || 0);
+      // 1. Tính giá vốn & trừ kho từ công thức chính (mẻ hoặc 1 ly)
+      let rawRecipeCostPerCup = 0;
+      for (const r of (product.recipe || [])) {
+        if (!r.ingredient) continue;
+        const qtyPerCup = r.quantity * recipeMultiplier;
+        rawRecipeCostPerCup += qtyPerCup * (r.ingredient.costPerUnit || 0);
+        addDeduction(ingredientDeductions, r.ingredient, qtyPerCup * quantity);
+      }
 
-          // Chỉ trừ kho những nguyên liệu có bật theo dõi tồn kho
-          if (r.ingredient.trackInventory !== false) {
-            const needed = Math.round(qtyForOne * quantity * 100) / 100;
-            if (!ingredientDeductions.has(ingId)) {
-              ingredientDeductions.set(ingId, { ingredient: r.ingredient, quantityNeeded: 0 });
-            }
-            ingredientDeductions.get(ingId).quantityNeeded = Math.round((ingredientDeductions.get(ingId).quantityNeeded + needed) * 100) / 100;
+      // 2. Tính giá vốn & trừ kho phần cộng thêm cố định mỗi ly (perCupExtras)
+      let extrasCostPerCup = 0;
+      if (includePerCupExtras && Array.isArray(product.perCupExtras)) {
+        for (const e of product.perCupExtras) {
+          if (!e.ingredient) continue;
+          extrasCostPerCup += e.quantity * (e.ingredient.costPerUnit || 0);
+          addDeduction(ingredientDeductions, e.ingredient, e.quantity * quantity);
+        }
+      }
+
+      // 3. Tính giá bán, giá vốn & trừ kho cho các Topping chọn thêm (multi-select)
+      let toppingsPricePerCup = 0;
+      let toppingsCostPerCup = 0;
+      const savedToppings = [];
+      if (Array.isArray(item.toppings)) {
+        for (const tReq of item.toppings) {
+          const topDoc = toppingMap.get((tReq.toppingId || '').toString());
+          const topQty = Math.max(1, Number(tReq.quantity) || 1);
+          if (!topDoc) continue;
+
+          const singleTopCost = topDoc.ingredient
+            ? Math.round(topDoc.quantity * (topDoc.ingredient.costPerUnit || 0))
+            : 0;
+          toppingsPricePerCup += (topDoc.price || 0) * topQty;
+          toppingsCostPerCup += singleTopCost * topQty;
+
+          savedToppings.push({
+            topping: topDoc._id,
+            name: topDoc.name,
+            price: topDoc.price || 0,
+            cost: singleTopCost,
+            quantity: topQty
+          });
+
+          if (topDoc.ingredient) {
+            addDeduction(ingredientDeductions, topDoc.ingredient, topDoc.quantity * topQty * quantity);
           }
         }
       }
 
       const wastePercent = Number(product.wastePercent) || 0;
-      const singleCupCost = Math.round(rawIngCostPerUnit * (1 + wastePercent / 100) + unitPkgCost);
-      const subtotal = unitSellPrice * quantity;
+      const singleDrinkCost = Math.round(
+        rawRecipeCostPerCup * (1 + wastePercent / 100) + extrasCostPerCup + unitPkgCost + toppingsCostPerCup
+      );
+      const finalUnitPrice = unitSellPrice + toppingsPricePerCup;
+      const subtotal = finalUnitPrice * quantity;
 
       totalAmount += subtotal;
-      totalCost += (singleCupCost * quantity);
+      totalCost += (singleDrinkCost * quantity);
 
-      const displayName = variantName && product.variants && product.variants.length > 0
+      const toppingSuffix = savedToppings.length > 0
+        ? ` + ${savedToppings.map(t => t.quantity > 1 ? `${t.quantity}x ${t.name}` : t.name).join(', ')}`
+        : '';
+
+      const baseDisplayName = variantName && ((product.variants && product.variants.length > 0) || item.variantName === '__BOTTLE__')
         ? `${product.name} (${variantName})`
-        : (item.variantName === '__BOTTLE__' ? `${product.name} (${variantName})` : product.name);
+        : product.name;
 
       orderItems.push({
         product: product._id,
-        productName: displayName,
+        productName: `${baseDisplayName}${toppingSuffix}`,
         variantName,
-        scaleFactor,
-        price: unitSellPrice,
-        cost: singleCupCost,
+        scaleFactor: Math.round(recipeMultiplier * 10000) / 10000,
+        toppings: savedToppings,
+        price: finalUnitPrice,
+        cost: singleDrinkCost,
         quantity,
         subtotal
       });

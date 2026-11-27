@@ -3,14 +3,18 @@ import { API } from './api.js';
 // Global state
 let globalIngredients = [];
 let globalProducts = [];
+let globalToppings = [];
 let globalCart = [];
 let profitChartInstance = null;
 let currentTab = 'dashboard';
 let currentPeriod = '30days';
 let currentTxTypeFilter = 'all';
 let currentInvFilter = 'all';
+let currentCostingSubTab = 'products';
 let activeImportIngredient = null;
 let activeCookIngredient = null;
+let activeBreakdownProduct = null;
+let posToppingContext = null; // { mode: 'add' | 'edit', productId, variantName, cartKey, selectedMap: { [toppingId]: qty } }
 
 // ==================== UTILITIES ====================
 export function formatMoney(amount) {
@@ -236,12 +240,43 @@ function renderProfitChart(chartData) {
   });
 }
 
-// ==================== 2. MENU & COSTING (2 TẦNG + NHIỀU SIZE + ĐÓNG CHAI) ====================
+// ==================== 2. MENU & COSTING + TOPPINGS GỌI THÊM ====================
+window.switchCostingSubTab = function(subTab) {
+  currentCostingSubTab = subTab;
+  const isProd = subTab === 'products';
+  document.getElementById('costing-subtab-products')?.classList.toggle('hidden', !isProd);
+  document.getElementById('costing-subtab-toppings')?.classList.toggle('hidden', isProd);
+
+  const btnProd = document.getElementById('subtab-btn-products');
+  const btnTop = document.getElementById('subtab-btn-toppings');
+  if (btnProd && btnTop) {
+    if (isProd) {
+      btnProd.className = 'px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white shadow-xs transition-all flex items-center gap-1.5';
+      btnTop.className = 'px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all flex items-center gap-1.5';
+    } else {
+      btnTop.className = 'px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 text-white shadow-xs transition-all flex items-center gap-1.5';
+      btnProd.className = 'px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all flex items-center gap-1.5';
+    }
+  }
+};
+
 export async function loadCostingData() {
   try {
-    const [products, ingredients] = await Promise.all([API.getProducts(), API.getIngredients()]);
+    const [products, ingredients, toppings] = await Promise.all([
+      API.getProducts(),
+      API.getIngredients(),
+      API.getToppings()
+    ]);
     globalProducts = products;
     globalIngredients = ingredients;
+    globalToppings = toppings;
+
+    const badgeProd = document.getElementById('badge-count-products');
+    const badgeTop = document.getElementById('badge-count-toppings');
+    if (badgeProd) badgeProd.textContent = products.length;
+    if (badgeTop) badgeTop.textContent = toppings.length;
+
+    renderToppingsGrid(toppings);
 
     const container = document.getElementById('products-grid');
     if (!products.length) {
@@ -249,7 +284,7 @@ export async function loadCostingData() {
         <div class="col-span-full py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 space-y-2">
           <i data-lucide="coffee" class="w-10 h-10 mx-auto text-slate-300"></i>
           <p class="font-semibold text-slate-600">Menu chưa có món nước nào!</p>
-          <p class="text-xs text-slate-400">Bấm nút "Thêm Món Nước Mới" để thiết lập công thức và tính giá thành.</p>
+          <p class="text-xs text-slate-400">Bấm nút "Thêm Món Nước Mới" để thiết lập công thức pha từng ly hoặc pha mẻ lớn chia ly.</p>
         </div>
       `;
       if (window.lucide) window.lucide.createIcons();
@@ -262,6 +297,7 @@ export async function loadCostingData() {
       const maxCupsColor = p.maxCupsPossible > 20 ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
                            p.maxCupsPossible > 0 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-rose-700 bg-rose-50 border-rose-200';
 
+      const isBatch = p.recipeMode === 'batch' && p.batchSummary;
       const subCount = (p.subRecipeBreakdowns || []).length;
       const extraSizes = (p.variantBreakdowns || []).slice(1);
       const hasBottling = p.bottlingSummary !== null && p.bottlingSummary !== undefined;
@@ -269,18 +305,26 @@ export async function loadCostingData() {
       const badgesHtml = `
         <div class="flex flex-wrap gap-1 mt-1.5">
           <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">${escapeHtml(p.baseSizeLabel || 'Ly 500ml')}</span>
-          ${subCount > 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">🍲 ${subCount} bán thành phẩm</span>` : ''}
+          ${isBatch ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold">🫗 Mẻ ${formatNumber(p.batchSummary.yieldVolume)}${escapeHtml(p.batchSummary.yieldUnit)} → ${p.batchSummary.cupsPerBatch} ly</span>` : ''}
+          ${!isBatch && subCount > 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">🍲 ${subCount} bán thành phẩm</span>` : ''}
           ${extraSizes.length > 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">+${extraSizes.length} size</span>` : ''}
           ${hasBottling ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-semibold">🍾 Chai ${p.bottlingSummary.bottleVolumeMl}ml</span>` : ''}
           ${p.totalKcal > 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-semibold">${formatNumber(p.totalKcal)} kcal</span>` : ''}
         </div>
       `;
 
+      const batchHighlightHtml = isBatch ? `
+        <div class="text-[11px] bg-amber-50 text-amber-900 px-2.5 py-1.5 rounded-lg border border-amber-200/80 flex justify-between items-center">
+          <span>Vốn mẻ ${formatNumber(p.batchSummary.yieldVolume)}${escapeHtml(p.batchSummary.yieldUnit)}: <b>${formatMoney(p.batchSummary.batchTotalCost)}</b></span>
+          <span class="font-bold text-emerald-700">Lãi ~${formatMoney(p.batchSummary.profitPerBatch)}/mẻ</span>
+        </div>
+      ` : '';
+
       const sizeMiniTable = extraSizes.length > 0 ? `
         <div class="mt-2 pt-2 border-t border-slate-200/70 space-y-1">
           ${extraSizes.map(v => `
             <div class="flex justify-between text-[11px] text-slate-600">
-              <span>${escapeHtml(v.name)} <span class="text-slate-400">(vốn ${formatMoney(v.costPrice)})</span></span>
+              <span>${escapeHtml(v.name)} ${isBatch && v.cupsPerBatch ? `<span class="text-amber-700 font-semibold">(${v.cupsPerBatch} ly/mẻ)</span>` : ''} <span class="text-slate-400">· vốn ${formatMoney(v.costPrice)}</span></span>
               <span class="font-bold text-slate-800">${formatMoney(v.price)} <span class="text-emerald-600">(${v.profitMargin}%)</span></span>
             </div>
           `).join('')}
@@ -304,17 +348,19 @@ export async function loadCostingData() {
               </span>
             </div>
 
+            ${batchHighlightHtml}
+
             <div class="bg-slate-50 rounded-xl p-3 space-y-1.5 text-xs my-3 border border-slate-100">
               <div class="flex justify-between">
                 <span class="text-slate-500">Giá bán (${escapeHtml(p.baseSizeLabel || 'Size chuẩn')}):</span>
                 <span class="font-bold text-slate-900 text-sm">${formatMoney(p.price)}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-slate-500">Giá vốn (COGS · ${p.foodCostPercent || 0}%):</span>
+                <span class="text-slate-500">Giá vốn 1 ly (${p.foodCostPercent || 0}%):</span>
                 <span class="font-bold text-amber-700">${formatMoney(p.costPrice)}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-slate-500">Gợi ý bán (${p.targetCostPercent || 30}% cost):</span>
+                <span class="text-slate-500">Gợi ý bán (${p.targetCostPercent || 30}% vốn):</span>
                 <span class="font-semibold text-blue-700">${formatMoney(p.suggestedPrice)}</span>
               </div>
               <div class="flex justify-between pt-1.5 border-t border-slate-200">
@@ -353,21 +399,144 @@ export async function loadCostingData() {
   }
 }
 
+function renderToppingsGrid(toppings) {
+  const container = document.getElementById('toppings-grid');
+  if (!container) return;
+
+  if (!toppings || !toppings.length) {
+    container.innerHTML = `
+      <div class="col-span-full py-10 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 space-y-2">
+        <div class="text-3xl">🍡</div>
+        <p class="font-semibold text-slate-600 text-sm">Chưa có topping gọi thêm nào</p>
+        <p class="text-xs text-slate-400">Bấm "Thêm Topping Gọi Thêm" để tạo các loại topping khách hay gọi kèm (Trân châu, Kem cheese, Đào miếng...).</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = toppings.map(t => `
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3">
+      <div>
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5"><span>🍡</span> ${escapeHtml(t.name)}</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Kho: <b>${escapeHtml(t.ingredientName)}</b> · <b>${formatNumber(t.quantity)} ${escapeHtml(t.unit)}</b>/phần</p>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">+${formatMoney(t.price)}</span>
+        </div>
+
+        <div class="mt-3 bg-slate-50 rounded-xl p-2.5 text-xs space-y-1 border border-slate-100">
+          <div class="flex justify-between">
+            <span class="text-slate-500">Giá vốn 1 phần:</span>
+            <span class="font-bold text-amber-700">${formatMoney(t.costPrice)}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-500">Lãi gộp / phần:</span>
+            <span class="font-extrabold text-emerald-600">${formatMoney(t.grossProfit)} (${t.profitMargin}%)</span>
+          </div>
+          <div class="flex justify-between text-[11px] pt-1 border-t border-slate-200">
+            <span class="text-slate-500">Tồn kho còn bán được:</span>
+            <span class="font-bold ${t.maxPortionsPossible > 10 ? 'text-emerald-700' : 'text-amber-700'}">${!t.trackInventory ? '∞ Không giới hạn' : `${formatNumber(t.maxPortionsPossible)} phần`}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+        <span class="text-[11px] text-slate-400 truncate max-w-[160px]">${escapeHtml(t.notes || '')}</span>
+        <div class="flex gap-1">
+          <button onclick="window.openEditToppingModal('${t._id}')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100" title="Sửa"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button onclick="window.confirmDeleteTopping('${t._id}', '${escapeHtml(t.name)}')" class="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50" title="Xóa"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function updateToppingLivePreview() {
+  const select = document.getElementById('topping-ingredient');
+  const opt = select?.options[select.selectedIndex];
+  const unit = opt?.dataset?.unit || 'g';
+  const unitCost = Number(opt?.dataset?.cost) || 0;
+  const qty = Number(document.getElementById('topping-qty')?.value) || 0;
+  const price = Number(document.getElementById('topping-price')?.value) || 0;
+
+  const lbl = document.getElementById('topping-unit-label');
+  if (lbl) lbl.textContent = unit;
+
+  const cost = Math.round(unitCost * qty);
+  const profit = price - cost;
+  const margin = price > 0 ? Math.round((profit / price) * 100) : 0;
+
+  document.getElementById('topping-preview-cost').textContent = formatMoney(cost);
+  document.getElementById('topping-preview-profit').textContent = formatMoney(profit);
+  document.getElementById('topping-preview-margin').textContent = `${margin}%`;
+}
+
+window.openAddToppingModal = async function() {
+  if (!globalIngredients.length) globalIngredients = await API.getIngredients();
+  document.getElementById('modal-topping-title').textContent = 'Thêm Topping Gọi Thêm';
+  document.getElementById('topping-id').value = '';
+  document.getElementById('topping-name').value = '';
+  document.getElementById('topping-ingredient').innerHTML = buildIngredientOptionsHtml('');
+  document.getElementById('topping-qty').value = '40';
+  document.getElementById('topping-price').value = '5000';
+  document.getElementById('topping-notes').value = '';
+  updateToppingLivePreview();
+  window.openModal('modal-topping');
+};
+
+window.openEditToppingModal = async function(id) {
+  if (!globalIngredients.length) globalIngredients = await API.getIngredients();
+  const t = globalToppings.find(x => x._id === id);
+  if (!t) return;
+
+  document.getElementById('modal-topping-title').textContent = `Sửa Topping: ${t.name}`;
+  document.getElementById('topping-id').value = t._id;
+  document.getElementById('topping-name').value = t.name;
+  document.getElementById('topping-ingredient').innerHTML = buildIngredientOptionsHtml(t.ingredientId || '');
+  document.getElementById('topping-qty').value = t.quantity;
+  document.getElementById('topping-price').value = t.price;
+  document.getElementById('topping-notes').value = t.notes || '';
+  updateToppingLivePreview();
+  window.openModal('modal-topping');
+};
+
+window.confirmDeleteTopping = async function(id, name) {
+  if (confirm(`Bạn có chắc muốn xóa topping "${name}" không?`)) {
+    try {
+      await API.deleteTopping(id);
+      showToast('Đã xóa topping!');
+      loadCostingData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+};
+
 // ==================== PHIẾU CÔNG THỨC & GIÁ THÀNH KIỂU TRÀ LỘC PHÁT ====================
 window.viewCostBreakdown = async function(productId) {
   try {
-    const p = await API.getProduct(productId);
+    const [p, toppings] = await Promise.all([
+      API.getProduct(productId),
+      globalToppings.length ? Promise.resolve(globalToppings) : API.getToppings()
+    ]);
+    globalToppings = toppings;
+    activeBreakdownProduct = p;
+
     document.getElementById('breakdown-drink-name').textContent = `${p.image || ''} ${p.name}`;
     document.getElementById('breakdown-drink-category').textContent =
-      `Danh mục: ${p.category}${p.description ? ' | ' + p.description : ''}`;
+      `Danh mục: ${p.category}${p.recipeMode === 'batch' ? ' | Chế độ Pha Mẻ Lớn Chia Ly' : ''}${p.description ? ' | ' + p.description : ''}`;
 
     const sopToggle = document.getElementById('toggle-sop-mode');
     if (sopToggle) sopToggle.checked = false;
     document.getElementById('recipe-sheet-printable')?.classList.remove('sop-mode');
 
     const sectionsHtml = [];
+    const isBatch = p.recipeMode === 'batch' && p.batchSummary;
 
-    // TẦNG 1: Từng bảng Bán thành phẩm (Nước cốt, Sốt, Trân châu...) giống ảnh Trà Lộc Phát
+    // TẦNG 1: Từng bảng Bán thành phẩm (nếu có dùng bán thành phẩm từ kho)
     if (p.subRecipeBreakdowns && p.subRecipeBreakdowns.length > 0) {
       p.subRecipeBreakdowns.forEach(sub => {
         const rows = (sub.items || []).map((item, idx) => `
@@ -380,14 +549,6 @@ window.viewCostBreakdown = async function(productId) {
           </tr>
         `).join('');
 
-        const wasteNote = sub.wastePercent > 0
-          ? `<span class="text-[11px] font-normal text-amber-700 ml-1">(đã tính hao hụt ${sub.wastePercent}%)</span>`
-          : '';
-
-        const portionsNote = sub.portionsPerBatch > 0
-          ? ` <span class="font-normal text-slate-600">(tương đương ~${sub.portionsPerBatch} ly)</span>`
-          : '';
-
         const instrHtml = sub.instructions
           ? `<div class="text-[11px] bg-amber-50/70 text-amber-900 px-3 py-1.5 border border-t-0 border-slate-300"><b>Cách nấu (SOP):</b> ${escapeHtml(sub.instructions)}</div>`
           : '';
@@ -396,9 +557,7 @@ window.viewCostBreakdown = async function(productId) {
           <div>
             <table class="recipe-sheet-table">
               <thead>
-                <tr>
-                  <th colspan="5" class="recipe-sheet-header">${escapeHtml(sub.name)}</th>
-                </tr>
+                <tr><th colspan="5" class="recipe-sheet-header">${escapeHtml(sub.name)}</th></tr>
                 <tr class="bg-slate-50 text-slate-700">
                   <th class="w-10 text-center">STT</th>
                   <th class="text-left">Nguyên Liệu</th>
@@ -410,13 +569,9 @@ window.viewCostBreakdown = async function(productId) {
               <tbody>
                 ${rows}
                 <tr class="recipe-sheet-subheader">
-                  <td colspan="3">Thành phẩm thu được ${formatNumber(sub.yieldQuantity)}${escapeHtml(sub.unit)}${portionsNote}${wasteNote}</td>
+                  <td colspan="3">Thành phẩm thu được ${formatNumber(sub.yieldQuantity)}${escapeHtml(sub.unit)}</td>
                   <td class="text-center cost-only">${formatMoneyExact(sub.costPerUnit)}/${escapeHtml(sub.unit)}</td>
                   <td class="text-right font-extrabold text-emerald-900 cost-only">${formatNumber(sub.batchCost)}</td>
-                </tr>
-                <tr class="bg-white font-bold text-slate-800 cost-only">
-                  <td colspan="4">Giá vốn dùng ${formatNumber(sub.usedQuantityInDrink)}${escapeHtml(sub.unit)} cho 1 ${escapeHtml(p.baseSizeLabel || 'ly')}</td>
-                  <td class="text-right text-amber-700">${formatNumber(sub.usedCostInDrink)}</td>
                 </tr>
               </tbody>
             </table>
@@ -426,127 +581,216 @@ window.viewCostBreakdown = async function(productId) {
       });
     }
 
-    // TẦNG 2: Bảng RA MÓN SIZE CHUẨN
-    const mainRows = (p.recipeDetails || []).map((item, idx) => `
-      <tr>
-        <td class="text-center text-slate-500 font-medium">${idx + 1}</td>
-        <td class="font-medium text-slate-900">
-          ${item.isSubRecipe ? '<span class="text-amber-600 mr-1">🍲</span>' : ''}${escapeHtml(item.name)}
-        </td>
-        <td class="text-center text-slate-600 cost-only">${escapeHtml(item.specPrice)}</td>
-        <td class="text-center font-semibold text-slate-800">
-          ${formatNumber(item.quantity)}${escapeHtml(item.unit)}
-          ${item.kcal > 0 ? `<span class="text-[11px] font-normal text-slate-500"> (${item.kcal}kcal)</span>` : ''}
-        </td>
-        <td class="text-right font-bold text-slate-900 cost-only">${item.itemCost > 0 ? formatNumber(item.itemCost) : '-'}</td>
-      </tr>
-    `);
-
-    if (p.packagingCost > 0) {
-      mainRows.push(`
+    // TẦNG 2: Khác biệt rõ giữa CHẾ ĐỘ PHA MẺ LỚN vs PHA TỪNG LY
+    if (isBatch) {
+      const bs = p.batchSummary;
+      const batchRows = (p.recipeDetails || []).map((item, idx) => `
         <tr>
-          <td class="text-center text-slate-500 font-medium">${mainRows.length + 1}</td>
-          <td class="font-medium text-slate-900">${escapeHtml(p.packagingNote || 'Ly, muỗng, ống hút')}</td>
-          <td class="text-center text-slate-500 cost-only">-</td>
-          <td class="text-center text-slate-500">1 bộ</td>
-          <td class="text-right font-bold text-slate-900 cost-only">${formatNumber(p.packagingCost)}</td>
+          <td class="text-center text-slate-500 font-medium">${idx + 1}</td>
+          <td class="font-medium text-slate-900">${escapeHtml(item.name)}</td>
+          <td class="text-center text-slate-600 cost-only">${escapeHtml(item.specPrice)}</td>
+          <td class="text-center font-semibold text-slate-800">${formatNumber(item.quantity)}${escapeHtml(item.unit)}</td>
+          <td class="text-right font-bold text-slate-900 cost-only">${item.itemCost > 0 ? formatNumber(item.itemCost) : '-'}</td>
         </tr>
-      `);
-    }
+      `).join('');
 
-    if (p.wastePercent > 0 && p.wasteCost > 0) {
-      mainRows.push(`
-        <tr class="cost-only bg-amber-50/40">
-          <td class="text-center text-slate-500">-</td>
-          <td class="font-medium text-amber-800">Dự phòng hao hụt pha chế (${p.wastePercent}%)</td>
-          <td class="text-center text-slate-500">-</td>
-          <td class="text-center text-amber-700">+${p.wastePercent}%</td>
-          <td class="text-right font-bold text-amber-800">${formatNumber(p.wasteCost)}</td>
-        </tr>
-      `);
-    }
-
-    // Các dòng tổng kết từng Size (500ml / 700ml / 1000ml) ngay dưới bảng RA MÓN đúng kiểu ảnh Trà Lộc Phát
-    const sizeSummaryRows = (p.variantBreakdowns || []).map(v => `
-      <tr class="recipe-sheet-subheader">
-        <td colspan="3" class="font-extrabold text-slate-900">
-          Giá vốn ${escapeHtml(v.name)} ${v.scaleFactor !== 1 ? `<span class="font-normal text-xs text-slate-600">(định lượng x${v.scaleFactor})</span>` : ''}
-        </td>
-        <td class="text-center font-bold text-slate-800">${v.kcal > 0 ? `${formatNumber(v.kcal)} kcal` : '-'}</td>
-        <td class="text-right font-extrabold text-amber-800 text-sm cost-only">${formatNumber(v.costPrice)} đ</td>
-      </tr>
-    `).join('');
-
-    sectionsHtml.push(`
-      <table class="recipe-sheet-table">
-        <thead>
-          <tr>
-            <th colspan="5" class="recipe-sheet-header">RA MÓN ${escapeHtml(p.name)} — ${escapeHtml(p.baseSizeLabel || 'LY 500ML')}</th>
-          </tr>
-          <tr class="bg-slate-50 text-slate-700">
-            <th class="w-10 text-center">STT</th>
-            <th class="text-left">Nguyên Liệu / Bán Thành Phẩm</th>
-            <th class="text-center cost-only">Giá Quy Cách</th>
-            <th class="text-center">Định Lượng</th>
-            <th class="text-right cost-only">Giá Vốn (đ)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${mainRows.join('')}
-          ${sizeSummaryRows}
-        </tbody>
-      </table>
-    `);
-
-    // TẦNG 3: Bảng phân tích Lợi nhuận & Gợi ý giá bán theo Size (Ẩn khi in SOP nhân viên)
-    const profitRows = (p.variantBreakdowns || []).map(v => `
-      <tr>
-        <td class="font-bold text-slate-900">${escapeHtml(v.name)}</td>
-        <td class="text-right font-bold text-amber-700">${formatMoney(v.costPrice)}</td>
-        <td class="text-right font-bold text-slate-900">${formatMoney(v.price)}</td>
-        <td class="text-right font-extrabold text-emerald-700">${formatMoney(v.grossProfit)} (${v.profitMargin}%)</td>
-        <td class="text-center font-semibold ${v.foodCostPercent <= (p.targetCostPercent || 30) ? 'text-emerald-700' : 'text-rose-600'}">${v.foodCostPercent}%</td>
-        <td class="text-right font-bold text-blue-700">${formatMoney(v.suggestedPrice)}</td>
-      </tr>
-    `).join('');
-
-    sectionsHtml.push(`
-      <div class="cost-only">
+      sectionsHtml.push(`
         <table class="recipe-sheet-table">
           <thead>
-            <tr>
-              <th colspan="6" class="bg-emerald-700 text-white font-bold text-center uppercase tracking-wider">PHÂN TÍCH LỢI NHUẬN & GỢI Ý GIÁ BÁN (MỤC TIÊU ${p.targetCostPercent || 30}% COST)</th>
-            </tr>
+            <tr><th colspan="5" class="recipe-sheet-header">CÔNG THỨC NẤU 1 MẺ LỚN (${formatNumber(bs.yieldVolume)}${escapeHtml(bs.yieldUnit)})</th></tr>
             <tr class="bg-slate-50 text-slate-700">
-              <th class="text-left">Size</th>
-              <th class="text-right">Giá Vốn</th>
-              <th class="text-right">Giá Bán</th>
-              <th class="text-right">Lãi Gộp</th>
-              <th class="text-center">% Cost</th>
-              <th class="text-right">Giá Gợi Ý</th>
+              <th class="w-10 text-center">STT</th>
+              <th class="text-left">Nguyên Liệu Nấu Mẻ</th>
+              <th class="text-center cost-only">Giá Quy Cách</th>
+              <th class="text-center">Định Lượng Mẻ</th>
+              <th class="text-right cost-only">Giá Vốn (đ)</th>
             </tr>
           </thead>
-          <tbody>${profitRows}</tbody>
+          <tbody>
+            ${batchRows}
+            ${p.wastePercent > 0 ? `<tr class="cost-only bg-amber-50/40"><td class="text-center">-</td><td colspan="2">Hao hụt nấu/lọc (${p.wastePercent}%)</td><td class="text-center">+${p.wastePercent}%</td><td class="text-right font-bold text-amber-800">${formatNumber(bs.wasteCost)}</td></tr>` : ''}
+            <tr class="recipe-sheet-subheader">
+              <td colspan="3">Thành phẩm thu được: <b>${formatNumber(bs.yieldVolume)} ${escapeHtml(bs.yieldUnit)}</b></td>
+              <td class="text-center cost-only">${formatMoneyExact(bs.costPerYieldUnit)}/${escapeHtml(bs.yieldUnit)}</td>
+              <td class="text-right font-extrabold text-emerald-900 cost-only">${formatNumber(bs.batchTotalCost)} đ</td>
+            </tr>
+          </tbody>
         </table>
-      </div>
-    `);
+      `);
 
-    // TẦNG 4: Bảng phân tích TRÀ SỮA ĐÓNG CHAI (nếu có bật)
+      // Bảng phụ liệu / topping cố định cộng riêng từng ly (nếu có)
+      if ((p.perCupExtraDetails && p.perCupExtraDetails.length > 0) || p.packagingCost > 0) {
+        const extraRows = (p.perCupExtraDetails || []).map((item, idx) => `
+          <tr>
+            <td class="text-center text-slate-500">${idx + 1}</td>
+            <td class="font-medium text-slate-900">${escapeHtml(item.name)}</td>
+            <td class="text-center text-slate-600 cost-only">${escapeHtml(item.specPrice)}</td>
+            <td class="text-center font-semibold">${formatNumber(item.quantity)}${escapeHtml(item.unit)}</td>
+            <td class="text-right font-bold cost-only">${formatNumber(item.itemCost)}</td>
+          </tr>
+        `);
+        if (p.packagingCost > 0) {
+          extraRows.push(`
+            <tr>
+              <td class="text-center text-slate-500">${extraRows.length + 1}</td>
+              <td class="font-medium">${escapeHtml(p.packagingNote || 'Ly, muỗng, ống hút')}</td>
+              <td class="text-center cost-only">-</td>
+              <td class="text-center">1 bộ</td>
+              <td class="text-right font-bold cost-only">${formatNumber(p.packagingCost)}</td>
+            </tr>
+          `);
+        }
+        sectionsHtml.push(`
+          <table class="recipe-sheet-table">
+            <thead>
+              <tr><th colspan="5" class="recipe-sheet-header">PHỤ LIỆU & BAO BÌ CỘNG RIÊNG CHO MỖI LY</th></tr>
+            </thead>
+            <tbody>${extraRows.join('')}</tbody>
+          </table>
+        `);
+      }
+
+      // Bảng chia mẻ ra từng cỡ ly / chai + Lãi ròng cả mẻ
+      const splitRows = (p.variantBreakdowns || []).map(v => `
+        <tr>
+          <td class="font-bold text-slate-900">${escapeHtml(v.name)}</td>
+          <td class="text-center font-semibold">${formatNumber(v.portionVolume)}${escapeHtml(bs.yieldUnit)}/ly</td>
+          <td class="text-center font-extrabold text-amber-800">${v.cupsPerBatch} ly ${v.leftoverVolume > 0 ? `<span class="text-[10px] font-normal text-slate-500">(dư ${v.leftoverVolume}${escapeHtml(bs.yieldUnit)})</span>` : ''}</td>
+          <td class="text-right cost-only">${formatMoney(v.liquidCostPerCup)} + ${formatMoney((v.extrasCostPerCup || 0) + (v.packagingCost || 0))}</td>
+          <td class="text-right font-extrabold text-amber-700 cost-only">${formatMoney(v.costPrice)}</td>
+          <td class="text-right font-bold cost-only">${formatMoney(v.price)}</td>
+          <td class="text-right font-extrabold text-emerald-700 cost-only">${formatMoney(v.grossProfit)} (${v.profitMargin}%)</td>
+          <td class="text-right font-extrabold text-emerald-800 bg-emerald-50/70 cost-only">${formatMoney(v.profitPerBatch)}</td>
+        </tr>
+      `).join('');
+
+      sectionsHtml.push(`
+        <table class="recipe-sheet-table">
+          <thead>
+            <tr><th colspan="8" class="bg-emerald-700 text-white font-bold text-center uppercase">BẢNG CHIA MẺ ${formatNumber(bs.yieldVolume)}${escapeHtml(bs.yieldUnit)} RA TỪNG CỠ LY & LỢI NHUẬN CẢ MẺ</th></tr>
+            <tr class="bg-slate-50 text-slate-700">
+              <th class="text-left">Cỡ ly / Chai</th>
+              <th class="text-center">Lượng rót</th>
+              <th class="text-center">Số ly / mẻ</th>
+              <th class="text-right cost-only">Nước + Phụ/Bao bì</th>
+              <th class="text-right cost-only">Tổng vốn / ly</th>
+              <th class="text-right cost-only">Giá bán</th>
+              <th class="text-right cost-only">Lãi / ly</th>
+              <th class="text-right cost-only">Tổng lãi cả mẻ</th>
+            </tr>
+          </thead>
+          <tbody>${splitRows}</tbody>
+        </table>
+      `);
+    } else {
+      const mainRows = (p.recipeDetails || []).map((item, idx) => `
+        <tr>
+          <td class="text-center text-slate-500 font-medium">${idx + 1}</td>
+          <td class="font-medium text-slate-900">${item.isSubRecipe ? '<span class="text-amber-600 mr-1">🍲</span>' : ''}${escapeHtml(item.name)}</td>
+          <td class="text-center text-slate-600 cost-only">${escapeHtml(item.specPrice)}</td>
+          <td class="text-center font-semibold text-slate-800">${formatNumber(item.quantity)}${escapeHtml(item.unit)}${item.kcal > 0 ? ` <span class="text-[11px] font-normal text-slate-500">(${item.kcal}kcal)</span>` : ''}</td>
+          <td class="text-right font-bold text-slate-900 cost-only">${item.itemCost > 0 ? formatNumber(item.itemCost) : '-'}</td>
+        </tr>
+      `);
+
+      if (p.packagingCost > 0) {
+        mainRows.push(`
+          <tr>
+            <td class="text-center text-slate-500 font-medium">${mainRows.length + 1}</td>
+            <td class="font-medium text-slate-900">${escapeHtml(p.packagingNote || 'Ly, muỗng, ống hút')}</td>
+            <td class="text-center text-slate-500 cost-only">-</td>
+            <td class="text-center text-slate-500">1 bộ</td>
+            <td class="text-right font-bold text-slate-900 cost-only">${formatNumber(p.packagingCost)}</td>
+          </tr>
+        `);
+      }
+
+      if (p.wastePercent > 0 && p.wasteCost > 0) {
+        mainRows.push(`
+          <tr class="cost-only bg-amber-50/40">
+            <td class="text-center text-slate-500">-</td>
+            <td class="font-medium text-amber-800">Dự phòng hao hụt pha chế (${p.wastePercent}%)</td>
+            <td class="text-center text-slate-500">-</td>
+            <td class="text-center text-amber-700">+${p.wastePercent}%</td>
+            <td class="text-right font-bold text-amber-800">${formatNumber(p.wasteCost)}</td>
+          </tr>
+        `);
+      }
+
+      const sizeSummaryRows = (p.variantBreakdowns || []).map(v => `
+        <tr class="recipe-sheet-subheader">
+          <td colspan="3" class="font-extrabold text-slate-900">
+            Giá vốn ${escapeHtml(v.name)} ${v.scaleFactor !== 1 ? `<span class="font-normal text-xs text-slate-600">(định lượng x${v.scaleFactor})</span>` : ''}
+          </td>
+          <td class="text-center font-bold text-slate-800">${v.kcal > 0 ? `${formatNumber(v.kcal)} kcal` : '-'}</td>
+          <td class="text-right font-extrabold text-amber-800 text-sm cost-only">${formatNumber(v.costPrice)} đ</td>
+        </tr>
+      `).join('');
+
+      sectionsHtml.push(`
+        <table class="recipe-sheet-table">
+          <thead>
+            <tr><th colspan="5" class="recipe-sheet-header">RA MÓN ${escapeHtml(p.name)} — ${escapeHtml(p.baseSizeLabel || 'LY 500ML')}</th></tr>
+            <tr class="bg-slate-50 text-slate-700">
+              <th class="w-10 text-center">STT</th>
+              <th class="text-left">Nguyên Liệu / Bán Thành Phẩm</th>
+              <th class="text-center cost-only">Giá Quy Cách</th>
+              <th class="text-center">Định Lượng</th>
+              <th class="text-right cost-only">Giá Vốn (đ)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${mainRows.join('')}
+            ${sizeSummaryRows}
+          </tbody>
+        </table>
+      `);
+
+      const profitRows = (p.variantBreakdowns || []).map(v => `
+        <tr>
+          <td class="font-bold text-slate-900">${escapeHtml(v.name)}</td>
+          <td class="text-right font-bold text-amber-700">${formatMoney(v.costPrice)}</td>
+          <td class="text-right font-bold text-slate-900">${formatMoney(v.price)}</td>
+          <td class="text-right font-extrabold text-emerald-700">${formatMoney(v.grossProfit)} (${v.profitMargin}%)</td>
+          <td class="text-center font-semibold ${v.foodCostPercent <= (p.targetCostPercent || 30) ? 'text-emerald-700' : 'text-rose-600'}">${v.foodCostPercent}%</td>
+          <td class="text-right font-bold text-blue-700">${formatMoney(v.suggestedPrice)}</td>
+        </tr>
+      `).join('');
+
+      sectionsHtml.push(`
+        <div class="cost-only">
+          <table class="recipe-sheet-table">
+            <thead>
+              <tr><th colspan="6" class="bg-emerald-700 text-white font-bold text-center uppercase tracking-wider">PHÂN TÍCH LỢI NHUẬN & GỢI Ý GIÁ BÁN (MỤC TIÊU ${p.targetCostPercent || 30}% VỐN)</th></tr>
+              <tr class="bg-slate-50 text-slate-700">
+                <th class="text-left">Size</th>
+                <th class="text-right">Giá Vốn</th>
+                <th class="text-right">Giá Bán</th>
+                <th class="text-right">Lãi Gộp</th>
+                <th class="text-center">% Vốn</th>
+                <th class="text-right">Giá Gợi Ý</th>
+              </tr>
+            </thead>
+            <tbody>${profitRows}</tbody>
+          </table>
+        </div>
+      `);
+    }
+
+    // TẦNG 4: Đóng chai (nếu có bật)
     if (p.bottlingSummary) {
       const b = p.bottlingSummary;
       sectionsHtml.push(`
         <div class="cost-only">
           <table class="recipe-sheet-table">
             <thead>
-              <tr>
-                <th colspan="4" class="bg-blue-700 text-white font-bold text-center uppercase tracking-wider">🍾 PHÂN TÍCH TRÀ SỮA ĐÓNG CHAI (${b.bottleVolumeMl}ML)</th>
-              </tr>
+              <tr><th colspan="4" class="bg-blue-700 text-white font-bold text-center uppercase tracking-wider">🍾 PHÂN TÍCH ĐÓNG CHAI (${b.bottleVolumeMl}ML)</th></tr>
             </thead>
             <tbody>
               <tr>
-                <td class="font-semibold text-slate-700">Tiền cốt & nguyên liệu (${b.bottleVolumeMl}ml)</td>
+                <td class="font-semibold text-slate-700">Tiền nước cốt (${b.bottleVolumeMl}ml)</td>
                 <td class="text-right font-bold">${formatMoney(b.liquidCostPerBottle)}</td>
-                <td class="font-semibold text-slate-700">Vỏ chai + Nắp + Tem nhãn</td>
+                <td class="font-semibold text-slate-700">Vỏ chai + Nắp + Tem</td>
                 <td class="text-right font-bold">${formatMoney(b.bottleCost)}</td>
               </tr>
               <tr class="bg-blue-50">
@@ -558,7 +802,7 @@ window.viewCostBreakdown = async function(productId) {
               ${b.bottlesPerBatch ? `
                 <tr>
                   <td colspan="4" class="bg-emerald-50/70 text-emerald-900 text-xs">
-                    💡 <b>Hiệu suất theo mẻ (${escapeHtml(b.mainSubName)}):</b> 1 mẻ đóng được khoảng <b>${b.bottlesPerBatch} chai ${b.bottleVolumeMl}ml</b>
+                    💡 <b>Hiệu suất theo mẻ (${escapeHtml(b.mainSubName)}):</b> 1 mẻ đóng được <b>${b.bottlesPerBatch} chai ${b.bottleVolumeMl}ml</b>
                     ${b.leftoverMl > 0 ? `(dư ${formatNumber(b.leftoverMl)}ml)` : ''}
                     → Tổng lãi gộp ước tính mỗi mẻ: <b class="text-emerald-700">${formatMoney(b.profitPerBatch)}</b>.
                   </td>
@@ -570,11 +814,73 @@ window.viewCostBreakdown = async function(productId) {
       `);
     }
 
+    // TẦNG 5: Khung thử ghép thêm nhiều Topping (tương tác live, ẩn khi in)
+    if (globalToppings.length > 0) {
+      const topCheckboxes = globalToppings.map(t => `
+        <label class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-purple-200 hover:border-purple-400 cursor-pointer text-xs">
+          <input type="checkbox" class="sim-topping-cb accent-purple-600" value="${t._id}" onchange="window.updateSheetToppingSimulation()">
+          <span class="font-semibold text-slate-800">${escapeHtml(t.name)}</span>
+          <span class="text-[11px] text-purple-700 font-bold">+${Math.round(t.price / 1000)}k</span>
+          <span class="text-[10px] text-slate-400">(vốn ${formatMoney(t.costPrice)})</span>
+        </label>
+      `).join('');
+
+      sectionsHtml.push(`
+        <div class="cost-only no-print p-3.5 rounded-2xl bg-purple-50/80 border border-purple-200 space-y-2.5">
+          <div class="text-xs font-bold text-purple-900">🍡 Thử ghép thêm nhiều loại Topping (xem giá vốn & lãi gộp cộng dồn):</div>
+          <div class="flex flex-wrap gap-2">${topCheckboxes}</div>
+          <div id="sheet-topping-sim-result" class="text-xs bg-white p-2.5 rounded-xl border border-purple-100 text-slate-600">
+            Tích chọn 1 hoặc nhiều loại topping ở trên để xem ngay tổng vốn & lãi của ly nước kèm topping.
+          </div>
+        </div>
+      `);
+    }
+
     document.getElementById('breakdown-sheet-content').innerHTML = sectionsHtml.join('');
     window.openModal('modal-cost-breakdown');
   } catch (err) {
     showToast(err.message, 'error');
   }
+};
+
+window.updateSheetToppingSimulation = function() {
+  const p = activeBreakdownProduct;
+  const resultEl = document.getElementById('sheet-topping-sim-result');
+  if (!p || !resultEl) return;
+
+  const checkedIds = Array.from(document.querySelectorAll('.sim-topping-cb:checked')).map(cb => cb.value);
+  if (!checkedIds.length) {
+    resultEl.innerHTML = 'Tích chọn 1 hoặc nhiều loại topping ở trên để xem ngay tổng vốn & lãi của ly nước kèm topping.';
+    return;
+  }
+
+  let extraCost = 0;
+  let extraPrice = 0;
+  const names = [];
+  checkedIds.forEach(id => {
+    const t = globalToppings.find(x => x._id === id);
+    if (t) {
+      extraCost += t.costPrice || 0;
+      extraPrice += t.price || 0;
+      names.push(t.name);
+    }
+  });
+
+  const totalCost = (p.costPrice || 0) + extraCost;
+  const totalPrice = (p.price || 0) + extraPrice;
+  const totalProfit = totalPrice - totalCost;
+  const margin = totalPrice > 0 ? Math.round((totalProfit / totalPrice) * 100) : 0;
+
+  resultEl.innerHTML = `
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <span><b>${escapeHtml(p.name)} (${escapeHtml(p.baseSizeLabel || 'Size chuẩn')})</b> + ${names.map(escapeHtml).join(' + ')}</span>
+      <span>
+        Tổng vốn: <b class="text-amber-700">${formatMoney(totalCost)}</b> ·
+        Giá bán: <b class="text-slate-900">${formatMoney(totalPrice)}</b> ·
+        Lãi: <b class="text-emerald-700">${formatMoney(totalProfit)} (${margin}%)</b>
+      </span>
+    </div>
+  `;
 };
 
 window.printRecipeSheet = function(isSopMode) {
@@ -650,19 +956,135 @@ export function addRecipeRow(ingredientId = '', quantity = '') {
   updateLiveCostCalculation();
 }
 
-window.addProductVariantRow = function(name = '', volumeMl = '', scaleFactor = 1.4, price = '', extraPackagingCost = 0) {
+window.setProductRecipeMode = function(mode) {
+  const isBatch = mode === 'batch';
+  document.getElementById('prod-recipe-mode').value = isBatch ? 'batch' : 'per_cup';
+
+  const btnPer = document.getElementById('prod-mode-percup-btn');
+  const btnBatch = document.getElementById('prod-mode-batch-btn');
+  if (btnPer && btnBatch) {
+    if (isBatch) {
+      btnBatch.classList.add('border-amber-500', 'bg-amber-50');
+      btnBatch.classList.remove('border-slate-200', 'bg-white');
+      btnPer.classList.remove('border-emerald-500', 'bg-emerald-50');
+      btnPer.classList.add('border-slate-200', 'bg-white');
+    } else {
+      btnPer.classList.add('border-emerald-500', 'bg-emerald-50');
+      btnPer.classList.remove('border-slate-200', 'bg-white');
+      btnBatch.classList.remove('border-amber-500', 'bg-amber-50');
+      btnBatch.classList.add('border-slate-200', 'bg-white');
+    }
+  }
+
+  document.getElementById('prod-batch-config-section')?.classList.toggle('hidden', !isBatch);
+  const labelEl = document.getElementById('prod-recipe-section-label');
+  if (labelEl) {
+    labelEl.innerHTML = isBatch
+      ? '<i data-lucide="flame" class="w-4 h-4 text-amber-600"></i> Nguyên liệu nấu 1 MẺ LỚN (VD: cả nồi 2 Lít)'
+      : '<i data-lucide="scale" class="w-4 h-4 text-emerald-600"></i> Định lượng nguyên liệu cho 1 ly';
+  }
+
+  const varHint = document.getElementById('variant-section-hint');
+  const quickBtns = document.getElementById('variant-quick-btns');
+  if (isBatch) {
+    if (varHint) varHint.textContent = 'Nhập lượng rót (ml) hoặc số ly/mẻ cho từng size lớn hơn / chai';
+    if (quickBtns) {
+      quickBtns.innerHTML = `
+        <button type="button" onclick="window.addProductVariantRow('Ly L (700ml)', 700, 1.4, '', 500, 210, 9)" class="px-2 py-1 text-[11px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-200">+ Ly L (rót 210ml)</button>
+        <button type="button" onclick="window.addProductVariantRow('Chai 330ml', 330, 2.2, '', 2200, 330, 6)" class="px-2 py-1 text-[11px] font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg border border-blue-200">+ Chai 330ml</button>
+        <button type="button" onclick="window.addProductVariantRow('', '', 1.2, '', 0, 200, 10)" class="px-2 py-1 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg">+ Size tùy chỉnh</button>
+      `;
+    }
+  } else {
+    if (varHint) varHint.textContent = 'Tự nhân định lượng theo hệ số để tính ngay giá vốn từng size';
+    if (quickBtns) {
+      quickBtns.innerHTML = `
+        <button type="button" onclick="window.addProductVariantRow('Ly 700ml', 700, 1.4, '', 600)" class="px-2 py-1 text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200">+ Size 700ml (x1.4)</button>
+        <button type="button" onclick="window.addProductVariantRow('Ly 1000ml', 1000, 2.0, '', 1900)" class="px-2 py-1 text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200">+ Size 1000ml (x2.0)</button>
+        <button type="button" onclick="window.addProductVariantRow('', '', 1.2, '', 0)" class="px-2 py-1 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg">+ Size tùy chỉnh</button>
+      `;
+    }
+  }
+
+  refreshVariantRowsModeDisplay();
+  if (window.lucide) window.lucide.createIcons();
+  updateLiveCostCalculation();
+};
+
+function syncBatchSplitModeUI() {
+  const mode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
+  document.getElementById('batch-split-by-volume-wrap')?.classList.toggle('hidden', mode !== 'by_volume');
+  document.getElementById('batch-split-by-count-wrap')?.classList.toggle('hidden', mode !== 'by_count');
+  refreshVariantRowsModeDisplay();
+  updateLiveCostCalculation();
+}
+
+function refreshVariantRowsModeDisplay() {
+  const isBatch = document.getElementById('prod-recipe-mode')?.value === 'batch';
+  const splitMode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
+
+  document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
+    vRow.querySelector('.var-percup-col')?.classList.toggle('hidden', isBatch);
+    vRow.querySelector('.var-batch-vol-col')?.classList.toggle('hidden', !(isBatch && splitMode === 'by_volume'));
+    vRow.querySelector('.var-batch-cnt-col')?.classList.toggle('hidden', !(isBatch && splitMode === 'by_count'));
+  });
+}
+
+window.addPerCupExtraRow = function(ingredientId = '', quantity = '') {
+  const container = document.getElementById('percup-extras-container');
+  const row = document.createElement('div');
+  row.className = 'flex flex-wrap sm:flex-nowrap items-center gap-2 text-xs';
+
+  row.innerHTML = `
+    <select class="extra-ing-select flex-1 min-w-[180px] px-2.5 py-1.5 border border-amber-200 rounded-lg bg-white">
+      ${buildIngredientOptionsHtml(ingredientId)}
+    </select>
+    <div class="flex items-center w-28">
+      <input type="number" min="0.01" step="any" value="${quantity}" placeholder="Lượng/ly" class="extra-qty-input w-full px-2 py-1.5 border border-amber-200 rounded-l-lg bg-white font-semibold">
+      <span class="extra-unit-display px-2 py-1.5 bg-amber-100 text-amber-800 rounded-r-lg border border-l-0 border-amber-200">cái</span>
+    </div>
+    <span class="extra-row-cost font-bold text-slate-700 w-20 text-right">0 đ</span>
+    <button type="button" class="btn-del-extra p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+  `;
+
+  container.appendChild(row);
+  updateRowUnitDisplay(row, '.extra-ing-select', '.extra-unit-display');
+
+  row.querySelector('.extra-ing-select').addEventListener('change', () => {
+    updateRowUnitDisplay(row, '.extra-ing-select', '.extra-unit-display');
+    updateLiveCostCalculation();
+  });
+  row.querySelector('.extra-qty-input').addEventListener('input', updateLiveCostCalculation);
+  row.querySelector('.btn-del-extra').addEventListener('click', () => {
+    row.remove();
+    updateLiveCostCalculation();
+  });
+
+  if (window.lucide) window.lucide.createIcons();
+  updateLiveCostCalculation();
+};
+
+window.addProductVariantRow = function(name = '', volumeMl = '', scaleFactor = 1.4, price = '', extraPackagingCost = 0, portionVolume = 210, portionCount = 10) {
   const container = document.getElementById('variant-rows-container');
   const row = document.createElement('div');
   row.className = 'variant-row grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs';
 
   row.innerHTML = `
-    <input type="text" placeholder="VD: Ly 700ml" value="${escapeHtml(name)}" class="var-name col-span-3 px-2 py-1.5 border border-slate-200 rounded-lg bg-white font-semibold">
+    <input type="text" placeholder="VD: Ly L (700ml)" value="${escapeHtml(name)}" class="var-name col-span-3 px-2 py-1.5 border border-slate-200 rounded-lg bg-white font-semibold">
     <div class="col-span-2">
-      <input type="number" placeholder="700ml" value="${volumeMl}" min="0" class="var-vol w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white" title="Dung tích (ml)">
+      <input type="number" placeholder="700ml" value="${volumeMl}" min="0" class="var-vol w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white" title="Dung tích hiển thị (ml)">
     </div>
-    <div class="col-span-2 flex items-center">
+    <div class="var-percup-col col-span-2 flex items-center">
       <span class="text-[10px] text-slate-500 mr-1">x</span>
       <input type="number" step="0.05" min="0.2" value="${scaleFactor}" class="var-scale w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white font-bold text-emerald-700" title="Hệ số nhân định lượng">
+    </div>
+    <div class="var-batch-vol-col hidden col-span-2 flex items-center">
+      <input type="number" step="5" min="1" value="${portionVolume || 200}" placeholder="ml rót" class="var-portion-vol w-full px-2 py-1.5 border border-amber-300 rounded-lg bg-white font-bold text-amber-800" title="Lượng rót từ mẻ (ml/ly)">
+      <span class="text-[10px] text-slate-500 ml-1">ml</span>
+    </div>
+    <div class="var-batch-cnt-col hidden col-span-2 flex items-center">
+      <input type="number" step="1" min="1" value="${portionCount || 10}" placeholder="số ly" class="var-portion-cnt w-full px-2 py-1.5 border border-amber-300 rounded-lg bg-white font-bold text-amber-800" title="Số ly chia được từ 1 mẻ">
+      <span class="text-[10px] text-slate-500 ml-1">ly</span>
     </div>
     <div class="col-span-2">
       <input type="number" min="0" step="100" value="${extraPackagingCost}" placeholder="+Bao bì" class="var-pkg w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white" title="Phụ phí bao bì thêm (đ)">
@@ -673,7 +1095,7 @@ window.addProductVariantRow = function(name = '', volumeMl = '', scaleFactor = 1
     <div class="col-span-1 flex items-center justify-end gap-1">
       <button type="button" class="btn-del-var p-1 text-slate-400 hover:text-rose-600"><i data-lucide="x" class="w-4 h-4"></i></button>
     </div>
-    <div class="col-span-12 var-live-info text-[11px] text-slate-500 flex justify-between px-1"></div>
+    <div class="col-span-12 var-live-info text-[11px] text-slate-500 flex flex-wrap justify-between px-1 gap-1"></div>
   `;
 
   container.appendChild(row);
@@ -683,6 +1105,7 @@ window.addProductVariantRow = function(name = '', volumeMl = '', scaleFactor = 1
     updateLiveCostCalculation();
   });
 
+  refreshVariantRowsModeDisplay();
   if (window.lucide) window.lucide.createIcons();
   updateLiveCostCalculation();
 };
@@ -697,9 +1120,10 @@ function updateRowUnitDisplay(row, selectSelector, unitSelector) {
 }
 
 export function updateLiveCostCalculation() {
+  const isBatch = document.getElementById('prod-recipe-mode')?.value === 'batch';
   const rows = document.querySelectorAll('#recipe-rows-container > div');
-  let rawCost = 0;
-  let totalKcal = 0;
+  let rawRecipeCost = 0;
+  let rawRecipeKcal = 0;
 
   rows.forEach(row => {
     const select = row.querySelector('.recipe-ing-select');
@@ -713,19 +1137,133 @@ export function updateLiveCostCalculation() {
       const qty = Number(qtyInput.value) || 0;
       const exactRowCost = costPerUnit * qty;
       costSpan.textContent = formatMoney(exactRowCost);
-      rawCost += exactRowCost;
-      totalKcal += kcalPerUnit * qty;
+      rawRecipeCost += exactRowCost;
+      rawRecipeKcal += kcalPerUnit * qty;
     } else {
       costSpan.textContent = '0 đ';
     }
   });
+
+  let extrasCostPerCup = 0;
+  let extrasKcalPerCup = 0;
+  if (isBatch) {
+    document.querySelectorAll('#percup-extras-container > div').forEach(row => {
+      const select = row.querySelector('.extra-ing-select');
+      const qty = Number(row.querySelector('.extra-qty-input')?.value) || 0;
+      const costSpan = row.querySelector('.extra-row-cost');
+      const opt = select?.options[select.selectedIndex];
+      if (opt && opt.value) {
+        const c = (Number(opt.dataset.cost) || 0) * qty;
+        costSpan.textContent = formatMoney(c);
+        extrasCostPerCup += c;
+        extrasKcalPerCup += (Number(opt.dataset.kcal) || 0) * qty;
+      } else if (costSpan) {
+        costSpan.textContent = '0 đ';
+      }
+    });
+  }
 
   const pkgCost = Number(document.getElementById('prod-packaging-cost')?.value) || 0;
   const wastePct = Number(document.getElementById('prod-waste-percent')?.value) || 0;
   const targetPct = Number(document.getElementById('prod-target-cost')?.value) || 30;
   const salePrice = Number(document.getElementById('prod-price')?.value) || 0;
 
-  const totalCost = Math.round(rawCost * (1 + wastePct / 100) + pkgCost);
+  let totalCost = 0;
+  let totalKcal = 0;
+
+  if (isBatch) {
+    const yieldVol = Math.max(0, Number(document.getElementById('prod-batch-yield-vol')?.value) || 0);
+    const yieldUnit = document.getElementById('prod-batch-yield-unit')?.value || 'ml';
+    const splitMode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
+    const batchTotalCost = Math.round(rawRecipeCost * (1 + wastePct / 100));
+    const costPerUnitYield = yieldVol > 0 ? Math.round((batchTotalCost / yieldVol) * 100) / 100 : 0;
+
+    let cupsPerBatch = 0;
+    let frac = 0;
+    let leftover = 0;
+    let portionVol = 0;
+
+    if (splitMode === 'by_count') {
+      cupsPerBatch = Math.max(1, Number(document.getElementById('prod-batch-portion-count')?.value) || 1);
+      frac = 1 / cupsPerBatch;
+      portionVol = yieldVol > 0 ? Math.round(yieldVol / cupsPerBatch) : 0;
+      const cntRes = document.getElementById('batch-split-count-result');
+      if (cntRes) cntRes.textContent = `→ ~${formatNumber(portionVol)} ${yieldUnit} / ly`;
+    } else {
+      portionVol = Math.max(1, Number(document.getElementById('prod-batch-portion-vol')?.value) || 150);
+      if (yieldVol > 0) {
+        cupsPerBatch = Math.floor(yieldVol / portionVol);
+        leftover = Math.round(yieldVol - cupsPerBatch * portionVol);
+        frac = portionVol / yieldVol;
+      }
+      const volRes = document.getElementById('batch-split-vol-result');
+      if (volRes) volRes.textContent = `→ ${cupsPerBatch} ly / mẻ${leftover > 0 ? ` (dư ${leftover}${yieldUnit})` : ''}`;
+    }
+
+    const liquidCostPerCup = Math.round(batchTotalCost * frac);
+    totalCost = Math.round(liquidCostPerCup + extrasCostPerCup + pkgCost);
+    totalKcal = Math.round(rawRecipeKcal * frac + extrasKcalPerCup);
+
+    const pillEl = document.getElementById('batch-live-unit-cost-pill');
+    if (pillEl) {
+      pillEl.textContent = `Tổng mẻ: ${formatMoney(batchTotalCost)} (${formatMoneyExact(costPerUnitYield)}/${yieldUnit})`;
+    }
+
+    const revBatch = cupsPerBatch * salePrice;
+    const profitBatch = cupsPerBatch * (salePrice - totalCost);
+    const bannerEl = document.getElementById('batch-profit-banner');
+    if (bannerEl) {
+      bannerEl.innerHTML = `
+        <span>1 mẻ (${cupsPerBatch} ly) · Nước ${formatMoney(liquidCostPerCup)}/ly${extrasCostPerCup + pkgCost > 0 ? ` + Phụ/Bao bì ${formatMoney(extrasCostPerCup + pkgCost)}/ly` : ''}</span>
+        <span class="font-extrabold text-emerald-700">Doanh thu ${formatMoney(revBatch)} · Lãi ~${formatMoney(profitBatch)} / mẻ</span>
+      `;
+    }
+
+    // Live cập nhật các dòng Size mở rộng ở chế độ Batch
+    document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
+      const extraPkg = Number(vRow.querySelector('.var-pkg')?.value) || 0;
+      const vPrice = Number(vRow.querySelector('.var-price')?.value) || 0;
+      let vCups = 0;
+      let vFrac = 0;
+      if (splitMode === 'by_count') {
+        vCups = Math.max(1, Number(vRow.querySelector('.var-portion-cnt')?.value) || 1);
+        vFrac = 1 / vCups;
+      } else {
+        const vVol = Math.max(1, Number(vRow.querySelector('.var-portion-vol')?.value) || 200);
+        vCups = yieldVol > 0 ? Math.floor(yieldVol / vVol) : 0;
+        vFrac = yieldVol > 0 ? vVol / yieldVol : 0;
+      }
+      const vCost = Math.round(batchTotalCost * vFrac + extrasCostPerCup + pkgCost + extraPkg);
+      const vProfit = vPrice - vCost;
+      const vMargin = vPrice > 0 ? Math.round((vProfit / vPrice) * 100) : 0;
+      const vSuggested = suggestRetailPrice(vCost, targetPct);
+
+      vRow.querySelector('.var-live-info').innerHTML = `
+        <span>Chia được <b class="text-amber-800">${vCups} ly/mẻ</b> · Vốn <b class="text-amber-700">${formatMoney(vCost)}/ly</b></span>
+        <span>Gợi ý: <b class="text-blue-700">${formatMoney(vSuggested)}</b> ${vPrice > 0 ? `· Lãi <b class="text-emerald-700">${vMargin}% (${formatMoney(vCups * vProfit)}/mẻ)</b>` : ''}</span>
+      `;
+    });
+  } else {
+    totalCost = Math.round(rawRecipeCost * (1 + wastePct / 100) + pkgCost);
+    totalKcal = Math.round(rawRecipeKcal);
+
+    document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
+      const factor = Number(vRow.querySelector('.var-scale').value) || 1;
+      const extraPkg = Number(vRow.querySelector('.var-pkg').value) || 0;
+      const vPrice = Number(vRow.querySelector('.var-price').value) || 0;
+      const vCost = Math.round(rawRecipeCost * factor * (1 + wastePct / 100) + pkgCost + extraPkg);
+      const vKcal = Math.round(rawRecipeKcal * factor);
+      const vProfit = vPrice - vCost;
+      const vMargin = vPrice > 0 ? Math.round((vProfit / vPrice) * 100) : 0;
+      const vSuggested = suggestRetailPrice(vCost, targetPct);
+
+      vRow.querySelector('.var-live-info').innerHTML = `
+        <span>Vốn: <b class="text-amber-700">${formatMoney(vCost)}</b> ${vKcal > 0 ? `· ${vKcal} kcal` : ''}</span>
+        <span>Gợi ý bán: <b class="text-blue-700">${formatMoney(vSuggested)}</b> ${vPrice > 0 ? `· Lãi <b class="text-emerald-700">${vMargin}%</b>` : ''}</span>
+      `;
+    });
+  }
+
   const grossProfit = salePrice - totalCost;
   const margin = salePrice > 0 ? Math.round((grossProfit / salePrice) * 100) : 0;
   const suggested = suggestRetailPrice(totalCost, targetPct);
@@ -747,23 +1285,6 @@ export function updateLiveCostCalculation() {
       costTipEl.classList.add('hidden');
     }
   }
-
-  // Cập nhật live từng dòng Size mở rộng
-  document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
-    const factor = Number(vRow.querySelector('.var-scale').value) || 1;
-    const extraPkg = Number(vRow.querySelector('.var-pkg').value) || 0;
-    const vPrice = Number(vRow.querySelector('.var-price').value) || 0;
-    const vCost = Math.round(rawCost * factor * (1 + wastePct / 100) + pkgCost + extraPkg);
-    const vKcal = Math.round(totalKcal * factor);
-    const vProfit = vPrice - vCost;
-    const vMargin = vPrice > 0 ? Math.round((vProfit / vPrice) * 100) : 0;
-    const vSuggested = suggestRetailPrice(vCost, targetPct);
-
-    vRow.querySelector('.var-live-info').innerHTML = `
-      <span>Vốn: <b class="text-amber-700">${formatMoney(vCost)}</b> ${vKcal > 0 ? `· ${vKcal} kcal` : ''}</span>
-      <span>Gợi ý bán: <b class="text-blue-700">${formatMoney(vSuggested)}</b> ${vPrice > 0 ? `· Lãi <b class="text-emerald-700">${vMargin}%</b>` : ''}</span>
-    `;
-  });
 }
 
 window.openAddProductModal = async function() {
@@ -783,6 +1304,13 @@ window.openAddProductModal = async function() {
   document.getElementById('prod-image').value = '🧋';
   document.getElementById('prod-description').value = '';
 
+  document.getElementById('prod-batch-yield-vol').value = '2000';
+  document.getElementById('prod-batch-yield-unit').value = 'ml';
+  document.querySelector('input[name="prod-batch-split-mode"][value="by_volume"]').checked = true;
+  document.getElementById('prod-batch-portion-vol').value = '150';
+  document.getElementById('prod-batch-portion-count').value = '15';
+  document.getElementById('percup-extras-container').innerHTML = '';
+
   document.getElementById('prod-bottling-enabled').checked = false;
   document.getElementById('prod-bottling-fields').classList.add('hidden');
   document.getElementById('prod-bottle-vol').value = '330';
@@ -792,6 +1320,8 @@ window.openAddProductModal = async function() {
   document.getElementById('recipe-rows-container').innerHTML = '';
   document.getElementById('variant-rows-container').innerHTML = '';
 
+  window.setProductRecipeMode('per_cup');
+  syncBatchSplitModeUI();
   addRecipeRow();
   addRecipeRow();
   window.openModal('modal-product');
@@ -816,6 +1346,23 @@ window.openEditProductModal = async function(productId) {
   document.getElementById('prod-image').value = p.image || '🥤';
   document.getElementById('prod-description').value = p.description || '';
 
+  document.getElementById('prod-batch-yield-vol').value = p.batchYieldVolume || 2000;
+  document.getElementById('prod-batch-yield-unit').value = p.batchYieldUnit || 'ml';
+  const splitModeVal = p.batchSplitMode === 'by_count' ? 'by_count' : 'by_volume';
+  const splitRadio = document.querySelector(`input[name="prod-batch-split-mode"][value="${splitModeVal}"]`);
+  if (splitRadio) splitRadio.checked = true;
+  document.getElementById('prod-batch-portion-vol').value = p.batchPortionVolume || 150;
+  document.getElementById('prod-batch-portion-count').value = p.batchPortionCount || 15;
+
+  const extrasContainer = document.getElementById('percup-extras-container');
+  extrasContainer.innerHTML = '';
+  if (Array.isArray(p.perCupExtras) && p.perCupExtras.length > 0) {
+    p.perCupExtras.forEach(item => {
+      const ingId = item.ingredient ? (item.ingredient._id || item.ingredient) : '';
+      window.addPerCupExtraRow(ingId, item.quantity);
+    });
+  }
+
   const bottleEnabled = !!(p.bottlingConfig && p.bottlingConfig.enabled);
   document.getElementById('prod-bottling-enabled').checked = bottleEnabled;
   document.getElementById('prod-bottling-fields').classList.toggle('hidden', !bottleEnabled);
@@ -836,9 +1383,20 @@ window.openEditProductModal = async function(productId) {
 
   const varContainer = document.getElementById('variant-rows-container');
   varContainer.innerHTML = '';
+  window.setProductRecipeMode(p.recipeMode === 'batch' ? 'batch' : 'per_cup');
+  syncBatchSplitModeUI();
+
   if (p.variants && p.variants.length > 0) {
     p.variants.forEach(v => {
-      window.addProductVariantRow(v.name, v.volumeMl || '', v.scaleFactor || 1, v.price || 0, v.extraPackagingCost || 0);
+      window.addProductVariantRow(
+        v.name,
+        v.volumeMl || '',
+        v.scaleFactor || 1,
+        v.price || 0,
+        v.extraPackagingCost || 0,
+        v.portionVolume || v.volumeMl || 200,
+        v.portionCount || 10
+      );
     });
   }
 
@@ -1386,11 +1944,12 @@ window.confirmDeleteIngredient = async function(id, name) {
   }
 };
 
-// ==================== 4. POS (HỖ TRỢ CHỌN NHANH NHIỀU SIZE & ĐÓNG CHAI) ====================
+// ==================== 4. POS (HỖ TRỢ NHIỀU SIZE, ĐÓNG CHAI & CHỌN NHIỀU TOPPING) ====================
 export async function loadPosData() {
   try {
-    const products = await API.getProducts();
+    const [products, toppings] = await Promise.all([API.getProducts(), API.getToppings()]);
     globalProducts = products;
+    globalToppings = toppings;
 
     const categories = ['Tất cả', ...new Set(products.map(p => p.category))];
     const catContainer = document.getElementById('pos-category-filters');
@@ -1419,10 +1978,19 @@ function renderPosProductList(products) {
     return;
   }
 
+  const hasToppings = globalToppings.length > 0;
+
   container.innerHTML = products.map(p => {
     const isOutOfStock = p.hasTrackedIngredient !== false && p.maxCupsPossible <= 0;
     const variants = p.variantBreakdowns || [];
     const hasMultipleOptions = variants.length > 1 || !!p.bottlingSummary;
+
+    const toppingBtn = hasToppings && !isOutOfStock ? `
+      <button type="button" onclick="event.stopPropagation(); window.openPosToppingModalForNew('${p._id}', '${escapeHtml(p.baseSizeLabel || '')}')"
+        class="px-2 py-1 rounded-lg text-[11px] font-bold border border-purple-200 bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-800 transition-all" title="Chọn nhiều topping thêm">
+        + Topping
+      </button>
+    ` : '';
 
     let optionsHtml = '';
     if (hasMultipleOptions) {
@@ -1440,14 +2008,17 @@ function renderPosProductList(products) {
         </button>
       ` : '';
 
-      optionsHtml = `<div class="flex flex-wrap gap-1.5 mt-3 pt-2.5 border-t border-slate-100">${sizeBtns}${bottleBtn}</div>`;
+      optionsHtml = `<div class="flex flex-wrap gap-1.5 mt-3 pt-2.5 border-t border-slate-100">${sizeBtns}${bottleBtn}${toppingBtn}</div>`;
     } else {
       optionsHtml = `
-        <div class="flex items-center justify-between mt-3 pt-2 border-t border-slate-100">
+        <div class="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-slate-100">
           <span class="font-extrabold text-slate-900 text-sm">${formatMoney(p.price)}</span>
-          <button type="button" ${isOutOfStock ? 'disabled' : `onclick="window.addToCart('${p._id}', '${escapeHtml(p.baseSizeLabel || '')}')"`} class="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
-            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-          </button>
+          <div class="flex items-center gap-1.5">
+            ${toppingBtn}
+            <button type="button" ${isOutOfStock ? 'disabled' : `onclick="event.stopPropagation(); window.addToCart('${p._id}', '${escapeHtml(p.baseSizeLabel || '')}')"`} class="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
         </div>
       `;
     }
@@ -1487,29 +2058,45 @@ function filterPosByCategory(category) {
   else renderPosProductList(globalProducts.filter(p => p.category === category));
 }
 
-window.addToCart = function(productId, variantName = '') {
-  const product = globalProducts.find(p => p._id === productId);
-  if (!product) return;
+function buildCartKey(productId, variantName, selectedToppings = []) {
+  const topSig = selectedToppings
+    .slice()
+    .sort((a, b) => a.toppingId.localeCompare(b.toppingId))
+    .map(t => `${t.toppingId}x${t.quantity}`)
+    .join(',');
+  return `${productId}::${variantName}::${topSig}`;
+}
 
+function resolveProductVariantInfo(product, variantName = '') {
   let displayLabel = product.name;
-  let unitPrice = product.price;
-  let unitCost = product.costPrice || 0;
+  let basePrice = product.price;
+  let baseCost = product.costPrice || 0;
   let resolvedVariant = variantName || product.baseSizeLabel || '';
 
   if (variantName === '__BOTTLE__' && product.bottlingSummary) {
     displayLabel = `${product.name} (Chai ${product.bottlingSummary.bottleVolumeMl}ml)`;
-    unitPrice = product.bottlingSummary.sellPricePerBottle;
-    unitCost = product.bottlingSummary.costPerBottle;
+    basePrice = product.bottlingSummary.sellPricePerBottle;
+    baseCost = product.bottlingSummary.costPerBottle;
   } else if (variantName && product.variantBreakdowns) {
     const matched = product.variantBreakdowns.find(v => v.name === variantName);
     if (matched) {
       displayLabel = product.variantBreakdowns.length > 1 ? `${product.name} (${matched.name})` : product.name;
-      unitPrice = matched.price;
-      unitCost = matched.costPrice;
+      basePrice = matched.price;
+      baseCost = matched.costPrice;
     }
   }
+  return { displayLabel, basePrice, baseCost, resolvedVariant };
+}
 
-  const cartKey = `${productId}::${resolvedVariant}`;
+window.addToCart = function(productId, variantName = '', selectedToppings = []) {
+  const product = globalProducts.find(p => p._id === productId);
+  if (!product) return;
+
+  const { displayLabel, basePrice, baseCost, resolvedVariant } = resolveProductVariantInfo(product, variantName);
+  const topPrice = selectedToppings.reduce((sum, t) => sum + (t.price * t.quantity), 0);
+  const topCost = selectedToppings.reduce((sum, t) => sum + (t.cost * t.quantity), 0);
+
+  const cartKey = buildCartKey(productId, resolvedVariant, selectedToppings);
   const existing = globalCart.find(item => item.cartKey === cartKey);
   if (existing) {
     existing.quantity++;
@@ -1519,13 +2106,101 @@ window.addToCart = function(productId, variantName = '') {
       productId,
       variantName: resolvedVariant,
       displayLabel,
-      price: unitPrice,
-      cost: unitCost,
+      basePrice,
+      baseCost,
+      toppings: selectedToppings,
+      price: basePrice + topPrice,
+      cost: baseCost + topCost,
       quantity: 1
     });
   }
 
   updateCartUI();
+};
+
+// Mở popup chọn nhiều loại topping cho món mới trên POS
+window.openPosToppingModalForNew = function(productId, variantName = '') {
+  const product = globalProducts.find(p => p._id === productId);
+  if (!product) return;
+  const info = resolveProductVariantInfo(product, variantName);
+  posToppingContext = {
+    mode: 'add',
+    productId,
+    variantName: info.resolvedVariant,
+    basePrice: info.basePrice,
+    displayLabel: info.displayLabel,
+    selectedMap: {}
+  };
+  renderPosToppingPickerModal();
+  window.openModal('modal-pos-topping');
+};
+
+// Mở popup thêm/sửa topping cho 1 dòng đã có trong giỏ hàng
+window.openPosToppingModalForCart = function(cartKey) {
+  const item = globalCart.find(i => i.cartKey === cartKey);
+  if (!item) return;
+  const selectedMap = {};
+  (item.toppings || []).forEach(t => { selectedMap[t.toppingId] = t.quantity; });
+
+  posToppingContext = {
+    mode: 'edit',
+    cartKey,
+    productId: item.productId,
+    variantName: item.variantName,
+    basePrice: item.basePrice ?? item.price,
+    displayLabel: item.displayLabel,
+    selectedMap
+  };
+  renderPosToppingPickerModal();
+  window.openModal('modal-pos-topping');
+};
+
+function renderPosToppingPickerModal() {
+  const ctx = posToppingContext;
+  if (!ctx) return;
+
+  document.getElementById('pos-topping-drink-title').textContent = ctx.displayLabel;
+  document.getElementById('pos-topping-drink-subtitle').textContent = `Giá gốc: ${formatMoney(ctx.basePrice)} · Tích chọn 1 hoặc nhiều loại topping bên dưới`;
+  document.getElementById('btn-confirm-pos-toppings').textContent = ctx.mode === 'edit' ? 'Cập nhật Topping' : 'Thêm món + Topping vào đơn';
+
+  const listEl = document.getElementById('pos-topping-list');
+  if (!globalToppings.length) {
+    listEl.innerHTML = '<div class="text-center py-6 text-xs text-slate-400">Chưa có topping nào. Hãy tạo trong tab Menu & Giá thành → Topping gọi thêm.</div>';
+  } else {
+    listEl.innerHTML = globalToppings.map(t => {
+      const qty = ctx.selectedMap[t._id] || 0;
+      const isSelected = qty > 0;
+      return `
+        <div class="flex items-center justify-between p-2.5 rounded-xl border transition-all ${isSelected ? 'border-purple-400 bg-purple-50/70' : 'border-slate-200 bg-white'}">
+          <div class="flex-1 pr-2 cursor-pointer" onclick="window.adjustPosToppingQty('${t._id}', ${isSelected ? 0 : 1}, true)">
+            <div class="font-bold text-xs text-slate-900">🍡 ${escapeHtml(t.name)}</div>
+            <div class="text-[11px] text-purple-700 font-semibold">+${formatMoney(t.price)} <span class="text-slate-400 font-normal">(${formatNumber(t.quantity)}${escapeHtml(t.unit)})</span></div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="window.adjustPosToppingQty('${t._id}', -1)" class="w-7 h-7 rounded-lg bg-white border border-slate-200 font-bold text-slate-600 hover:bg-slate-100">-</button>
+            <span class="w-5 text-center font-extrabold text-xs ${isSelected ? 'text-purple-800' : 'text-slate-400'}">${qty}</span>
+            <button type="button" onclick="window.adjustPosToppingQty('${t._id}', 1)" class="w-7 h-7 rounded-lg bg-purple-600 text-white font-bold hover:bg-purple-700">+</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  let extra = 0;
+  Object.entries(ctx.selectedMap).forEach(([tid, qty]) => {
+    const t = globalToppings.find(x => x._id === tid);
+    if (t && qty > 0) extra += t.price * qty;
+  });
+  document.getElementById('pos-topping-live-total').textContent = formatMoney(ctx.basePrice + extra);
+}
+
+window.adjustPosToppingQty = function(toppingId, deltaOrVal, isAbsolute = false) {
+  if (!posToppingContext) return;
+  const cur = posToppingContext.selectedMap[toppingId] || 0;
+  const next = isAbsolute ? deltaOrVal : Math.max(0, cur + deltaOrVal);
+  if (next <= 0) delete posToppingContext.selectedMap[toppingId];
+  else posToppingContext.selectedMap[toppingId] = next;
+  renderPosToppingPickerModal();
 };
 
 window.updateCartItemQty = function(cartKey, delta) {
@@ -1545,7 +2220,7 @@ function updateCartUI() {
       <div class="h-full flex flex-col items-center justify-center text-slate-400 py-12 text-center">
         <i data-lucide="shopping-bag" class="w-10 h-10 text-slate-200 mb-2"></i>
         <p class="text-xs font-medium text-slate-500">Giỏ hàng đang trống</p>
-        <p class="text-[11px] text-slate-400">Chọn món (hoặc size) bên trái để thêm vào đơn</p>
+        <p class="text-[11px] text-slate-400">Chọn món, size hoặc bấm "+ Topping" bên trái</p>
       </div>
     `;
     document.getElementById('pos-cart-total-qty').textContent = '0';
@@ -1567,14 +2242,26 @@ function updateCartUI() {
     totalAmount += subtotal;
     totalCost += subcost;
 
+    const topBadges = (item.toppings && item.toppings.length > 0)
+      ? `<div class="flex flex-wrap gap-1 mt-1">${item.toppings.map(t => `<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold">+ ${t.quantity > 1 ? `${t.quantity}x ` : ''}${escapeHtml(t.name)}</span>`).join('')}</div>`
+      : '';
+
+    const editTopBtn = globalToppings.length > 0
+      ? `<button type="button" onclick="window.openPosToppingModalForCart('${escapeHtml(item.cartKey)}')" class="text-[10px] font-bold text-purple-700 hover:underline mt-1 inline-block">🍡 ${item.toppings && item.toppings.length > 0 ? 'Sửa topping' : '+ Thêm topping'}</button>`
+      : '';
+
     return `
-      <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+      <div class="flex items-start justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
         <div class="flex-1 pr-2">
           <h5 class="font-bold text-slate-900">${escapeHtml(item.displayLabel)}</h5>
-          <span class="text-slate-500">${formatMoney(item.price)} x ${item.quantity} = </span>
-          <span class="font-bold text-emerald-700">${formatMoney(subtotal)}</span>
+          ${topBadges}
+          <div class="mt-1">
+            <span class="text-slate-500">${formatMoney(item.price)} x ${item.quantity} = </span>
+            <span class="font-bold text-emerald-700">${formatMoney(subtotal)}</span>
+          </div>
+          ${editTopBtn}
         </div>
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 pt-0.5">
           <button onclick="window.updateCartItemQty('${escapeHtml(item.cartKey)}', -1)" class="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100">-</button>
           <span class="font-extrabold text-slate-900 px-1">${item.quantity}</span>
           <button onclick="window.updateCartItemQty('${escapeHtml(item.cartKey)}', 1)" class="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100">+</button>
@@ -1725,14 +2412,83 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Modals open buttons
   document.getElementById('btn-open-add-product')?.addEventListener('click', window.openAddProductModal);
+  document.getElementById('btn-open-add-topping')?.addEventListener('click', window.openAddToppingModal);
   document.getElementById('btn-open-add-ingredient')?.addEventListener('click', () => window.openAddIngredientModal(false));
   document.getElementById('btn-open-add-subrecipe')?.addEventListener('click', () => window.openAddIngredientModal(true));
   document.getElementById('btn-add-recipe-row')?.addEventListener('click', () => addRecipeRow());
+  document.getElementById('btn-add-percup-extra-row')?.addEventListener('click', () => window.addPerCupExtraRow());
   document.getElementById('btn-add-subrecipe-row')?.addEventListener('click', () => window.addSubRecipeRow());
 
-  // Live calculations in Product modal
-  ['prod-price', 'prod-packaging-cost', 'prod-waste-percent', 'prod-target-cost'].forEach(id => {
+  // Live calculations in Product modal (both per_cup and batch)
+  [
+    'prod-price', 'prod-packaging-cost', 'prod-waste-percent', 'prod-target-cost',
+    'prod-batch-yield-vol', 'prod-batch-yield-unit', 'prod-batch-portion-vol', 'prod-batch-portion-count'
+  ].forEach(id => {
     document.getElementById(id)?.addEventListener('input', updateLiveCostCalculation);
+    document.getElementById(id)?.addEventListener('change', updateLiveCostCalculation);
+  });
+
+  document.querySelectorAll('input[name="prod-batch-split-mode"]').forEach(r => {
+    r.addEventListener('change', syncBatchSplitModeUI);
+  });
+
+  // Live calculations & Submit for Topping Modal
+  ['topping-ingredient', 'topping-qty', 'topping-price'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', updateToppingLivePreview);
+    document.getElementById(id)?.addEventListener('change', updateToppingLivePreview);
+  });
+
+  document.getElementById('form-topping')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('topping-id').value;
+    const payload = {
+      name: document.getElementById('topping-name').value.trim(),
+      ingredient: document.getElementById('topping-ingredient').value,
+      quantity: Number(document.getElementById('topping-qty').value),
+      price: Number(document.getElementById('topping-price').value),
+      notes: document.getElementById('topping-notes').value.trim()
+    };
+    try {
+      if (id) await API.updateTopping(id, payload);
+      else await API.createTopping(payload);
+      showToast('Lưu topping thành công!');
+      window.closeModal('modal-topping');
+      loadCostingData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  // Confirm multi-select toppings on POS
+  document.getElementById('btn-confirm-pos-toppings')?.addEventListener('click', () => {
+    const ctx = posToppingContext;
+    if (!ctx) return;
+
+    const selectedToppings = Object.entries(ctx.selectedMap)
+      .filter(([, qty]) => qty > 0)
+      .map(([tid, qty]) => {
+        const t = globalToppings.find(x => x._id === tid);
+        return t ? { toppingId: t._id, name: t.name, price: t.price || 0, cost: t.costPrice || 0, quantity: qty } : null;
+      })
+      .filter(Boolean);
+
+    if (ctx.mode === 'edit') {
+      const idx = globalCart.findIndex(i => i.cartKey === ctx.cartKey);
+      if (idx > -1) {
+        const item = globalCart[idx];
+        const topPrice = selectedToppings.reduce((s, t) => s + t.price * t.quantity, 0);
+        const topCost = selectedToppings.reduce((s, t) => s + t.cost * t.quantity, 0);
+        item.toppings = selectedToppings;
+        item.price = (item.basePrice ?? item.price) + topPrice;
+        item.cost = (item.baseCost ?? item.cost) + topCost;
+        item.cartKey = buildCartKey(item.productId, item.variantName, selectedToppings);
+      }
+      updateCartUI();
+    } else {
+      window.addToCart(ctx.productId, ctx.variantName, selectedToppings);
+    }
+
+    window.closeModal('modal-pos-topping');
   });
 
   document.getElementById('prod-bottling-enabled')?.addEventListener('change', (e) => {
@@ -1918,10 +2674,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Submit Product (with multi-size & bottling)
+  // Submit Product (per_cup & batch + multi-size + bottling)
   document.getElementById('form-product')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('prod-id').value;
+    const recipeMode = document.getElementById('prod-recipe-mode').value === 'batch' ? 'batch' : 'per_cup';
+    const batchSplitMode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
 
     const recipe = [];
     document.querySelectorAll('#recipe-rows-container > div').forEach(row => {
@@ -1930,19 +2688,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (ingId && qty > 0) recipe.push({ ingredient: ingId, quantity: qty });
     });
 
+    const perCupExtras = [];
+    if (recipeMode === 'batch') {
+      document.querySelectorAll('#percup-extras-container > div').forEach(row => {
+        const ingId = row.querySelector('.extra-ing-select').value;
+        const qty = Number(row.querySelector('.extra-qty-input').value);
+        if (ingId && qty > 0) perCupExtras.push({ ingredient: ingId, quantity: qty });
+      });
+    }
+
     const variants = [];
     document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
       const name = vRow.querySelector('.var-name').value.trim();
       const volumeMl = Number(vRow.querySelector('.var-vol').value) || 0;
       const scaleFactor = Number(vRow.querySelector('.var-scale').value) || 1;
+      const portionVolume = Number(vRow.querySelector('.var-portion-vol')?.value) || 0;
+      const portionCount = Number(vRow.querySelector('.var-portion-cnt')?.value) || 0;
       const extraPackagingCost = Number(vRow.querySelector('.var-pkg').value) || 0;
       const price = Number(vRow.querySelector('.var-price').value) || 0;
-      if (name) variants.push({ name, volumeMl, scaleFactor, extraPackagingCost, price });
+      if (name) variants.push({ name, volumeMl, scaleFactor, portionVolume, portionCount, extraPackagingCost, price });
     });
 
     const payload = {
       name: document.getElementById('prod-name').value.trim(),
       category: document.getElementById('prod-category').value,
+      recipeMode,
+      batchYieldVolume: Number(document.getElementById('prod-batch-yield-vol').value) || 2000,
+      batchYieldUnit: document.getElementById('prod-batch-yield-unit').value || 'ml',
+      batchSplitMode,
+      batchPortionVolume: Number(document.getElementById('prod-batch-portion-vol').value) || 150,
+      batchPortionCount: Number(document.getElementById('prod-batch-portion-count').value) || 15,
+      perCupExtras,
       price: Number(document.getElementById('prod-price').value),
       baseSizeLabel: document.getElementById('prod-base-size').value.trim() || 'Ly 500ml',
       baseVolumeMl: Number(document.getElementById('prod-base-vol').value) || 500,
@@ -1985,12 +2761,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const items = globalCart.map(i => ({
       productId: i.productId,
       variantName: i.variantName,
-      quantity: i.quantity
+      quantity: i.quantity,
+      toppings: (i.toppings || []).map(t => ({ toppingId: t.toppingId, quantity: t.quantity }))
     }));
 
     try {
       const res = await API.createOrder({ items, paymentMethod });
-      showToast('Tạo đơn thành công! Đã trừ kho theo size.');
+      showToast('Tạo đơn thành công! Đã trừ kho theo size & topping.');
       if (res.stockWarnings) res.stockWarnings.forEach(w => showToast(w, 'warning'));
       globalCart = [];
       updateCartUI();

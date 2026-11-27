@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Ingredient = require('../models/Ingredient');
 const Product = require('../models/Product');
+const Topping = require('../models/Topping');
 const Transaction = require('../models/Transaction');
 const { round4, formatSpecPrice, computeSubRecipeMetrics, syncAllSubRecipes } = require('../utils/costing');
 
@@ -281,10 +282,22 @@ router.post('/:id/cook-batch', async (req, res) => {
 // Xóa nguyên liệu
 router.delete('/:id', async (req, res) => {
   try {
-    const usedInProducts = await Product.find({ 'recipe.ingredient': req.params.id });
+    const usedInProducts = await Product.find({
+      $or: [
+        { 'recipe.ingredient': req.params.id },
+        { 'perCupExtras.ingredient': req.params.id }
+      ]
+    });
     if (usedInProducts.length > 0) {
       return res.status(400).json({
         message: `Không thể xóa vì đang dùng trong món: ${usedInProducts.map(p => p.name).join(', ')}`
+      });
+    }
+
+    const usedInToppings = await Topping.find({ ingredient: req.params.id });
+    if (usedInToppings.length > 0) {
+      return res.status(400).json({
+        message: `Không thể xóa vì đang liên kết với topping: ${usedInToppings.map(t => t.name).join(', ')}`
       });
     }
 
