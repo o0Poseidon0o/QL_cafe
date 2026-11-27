@@ -298,49 +298,49 @@ export async function loadCostingData() {
                            p.maxCupsPossible > 0 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-rose-700 bg-rose-50 border-rose-200';
 
       const isBatch = p.recipeMode === 'batch' && p.batchSummary;
-      const subCount = (p.subRecipeBreakdowns || []).length;
-      const extraSizes = (p.variantBreakdowns || []).slice(1);
-      const hasBottling = p.bottlingSummary !== null && p.bottlingSummary !== undefined;
+      const allSizes = p.variantBreakdowns || [];
 
-      const badgesHtml = `
-        <div class="flex flex-wrap gap-1 mt-1.5">
-          <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">${escapeHtml(p.baseSizeLabel || 'Ly 500ml')}</span>
-          ${isBatch ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold">🫗 Mẻ ${formatNumber(p.batchSummary.yieldVolume)}${escapeHtml(p.batchSummary.yieldUnit)} → ${p.batchSummary.cupsPerBatch} ly</span>` : ''}
-          ${!isBatch && subCount > 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">🍲 ${subCount} bán thành phẩm</span>` : ''}
-          ${extraSizes.length > 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">+${extraSizes.length} size</span>` : ''}
-          ${hasBottling ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-semibold">🍾 Chai ${p.bottlingSummary.bottleVolumeMl}ml</span>` : ''}
-          ${p.totalKcal > 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-semibold">${formatNumber(p.totalKcal)} kcal</span>` : ''}
-        </div>
-      `;
-
-      const batchHighlightHtml = isBatch ? `
-        <div class="text-[11px] bg-amber-50 text-amber-900 px-2.5 py-1.5 rounded-lg border border-amber-200/80 flex justify-between items-center">
-          <span>Vốn mẻ ${formatNumber(p.batchSummary.yieldVolume)}${escapeHtml(p.batchSummary.yieldUnit)}: <b>${formatMoney(p.batchSummary.batchTotalCost)}</b></span>
-          <span class="font-bold text-emerald-700">Lãi ~${formatMoney(p.batchSummary.profitPerBatch)}/mẻ</span>
+      const batchBanner = isBatch ? `
+        <div class="text-[11px] bg-amber-50 text-amber-900 px-3 py-1.5 rounded-xl border border-amber-200/80 flex justify-between items-center mt-2">
+          <span>🫗 Mẻ <b>${formatNumber(p.batchSummary.yieldVolume)}${escapeHtml(p.batchSummary.yieldUnit)}</b> · Vốn mẻ <b>${formatMoney(p.batchSummary.batchTotalCost)}</b></span>
+          <span class="font-bold text-amber-800">${formatMoneyExact(p.batchSummary.costPerYieldUnit)}/${escapeHtml(p.batchSummary.yieldUnit)}</span>
         </div>
       ` : '';
 
-      const sizeMiniTable = extraSizes.length > 0 ? `
-        <div class="mt-2 pt-2 border-t border-slate-200/70 space-y-1">
-          ${extraSizes.map(v => `
-            <div class="flex justify-between text-[11px] text-slate-600">
-              <span>${escapeHtml(v.name)} ${isBatch && v.cupsPerBatch ? `<span class="text-amber-700 font-semibold">(${v.cupsPerBatch} ly/mẻ)</span>` : ''} <span class="text-slate-400">· vốn ${formatMoney(v.costPrice)}</span></span>
-              <span class="font-bold text-slate-800">${formatMoney(v.price)} <span class="text-emerald-600">(${v.profitMargin}%)</span></span>
+      const sizesTableHtml = `
+        <div class="bg-slate-50 rounded-xl p-2.5 my-3 border border-slate-100 space-y-1.5">
+          <div class="grid grid-cols-12 text-[10px] font-bold uppercase text-slate-400 px-1 pb-1 border-b border-slate-200/70">
+            <span class="col-span-5">Cỡ ly / Dung tích</span>
+            <span class="col-span-3 text-right">Giá vốn</span>
+            <span class="col-span-4 text-right">Giá bán (Lãi)</span>
+          </div>
+          ${allSizes.map(v => `
+            <div class="grid grid-cols-12 items-center text-xs px-1 py-0.5">
+              <div class="col-span-5 pr-1">
+                <div class="font-bold text-slate-800 leading-tight">${escapeHtml(v.name)}</div>
+                ${isBatch && v.cupsPerBatch
+                  ? `<div class="text-[10px] text-amber-700">${formatNumber(v.portionVolume)}${escapeHtml(p.batchSummary.yieldUnit)} · ${v.cupsPerBatch} ly/mẻ</div>`
+                  : (v.scaleFactor && v.scaleFactor !== 1 ? `<div class="text-[10px] text-slate-400">định lượng x${v.scaleFactor}</div>` : '')}
+              </div>
+              <div class="col-span-3 text-right font-semibold text-amber-700">${formatMoney(v.costPrice)}</div>
+              <div class="col-span-4 text-right">
+                <span class="font-extrabold text-slate-900">${formatMoney(v.price)}</span>
+                <span class="block text-[10px] font-bold text-emerald-600">+${formatMoney(v.grossProfit)} (${v.profitMargin}%)</span>
+              </div>
             </div>
           `).join('')}
         </div>
-      ` : '';
+      `;
 
       return `
-        <div class="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+        <div class="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
           <div>
-            <div class="flex items-start justify-between gap-2 mb-2">
-              <div class="flex items-start gap-2.5">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2.5">
                 <span class="text-2xl p-2 rounded-xl bg-slate-100">${escapeHtml(p.image || '🥤')}</span>
                 <div>
                   <h3 class="font-bold text-slate-900 text-base leading-tight">${escapeHtml(p.name)}</h3>
-                  <span class="text-[11px] text-slate-500 font-medium">${escapeHtml(p.category)}</span>
-                  ${badgesHtml}
+                  <span class="text-[11px] text-slate-500 font-medium">${escapeHtml(p.category)}${allSizes.length > 1 ? ` · ${allSizes.length} cỡ ly` : ''}</span>
                 </div>
               </div>
               <span class="text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap ${marginBadgeColor}">
@@ -348,39 +348,20 @@ export async function loadCostingData() {
               </span>
             </div>
 
-            ${batchHighlightHtml}
+            ${batchBanner}
+            ${sizesTableHtml}
 
-            <div class="bg-slate-50 rounded-xl p-3 space-y-1.5 text-xs my-3 border border-slate-100">
-              <div class="flex justify-between">
-                <span class="text-slate-500">Giá bán (${escapeHtml(p.baseSizeLabel || 'Size chuẩn')}):</span>
-                <span class="font-bold text-slate-900 text-sm">${formatMoney(p.price)}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-slate-500">Giá vốn 1 ly (${p.foodCostPercent || 0}%):</span>
-                <span class="font-bold text-amber-700">${formatMoney(p.costPrice)}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-slate-500">Gợi ý bán (${p.targetCostPercent || 30}% vốn):</span>
-                <span class="font-semibold text-blue-700">${formatMoney(p.suggestedPrice)}</span>
-              </div>
-              <div class="flex justify-between pt-1.5 border-t border-slate-200">
-                <span class="font-bold text-emerald-800">Lãi gộp trên 1 ly:</span>
-                <span class="font-extrabold text-emerald-600 text-sm">${formatMoney(p.grossProfit)}</span>
-              </div>
-              ${sizeMiniTable}
-            </div>
-
-            <div class="flex items-center justify-between text-xs px-3 py-2 rounded-xl border ${maxCupsColor} mb-2">
+            <div class="flex items-center justify-between text-xs px-3 py-1.5 rounded-xl border ${maxCupsColor}">
               <span class="font-medium">Tồn kho pha được:</span>
               <span class="font-extrabold">${p.hasTrackedIngredient === false ? '∞ Không giới hạn' : `${formatNumber(p.maxCupsPossible)} ly`}</span>
             </div>
           </div>
 
-          <div class="flex items-center justify-between pt-3 mt-2 border-t border-slate-100 text-xs">
+          <div class="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 text-xs">
             <button onclick="window.viewCostBreakdown('${p._id}')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold flex items-center gap-1.5 transition-all">
-              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Phiếu công thức & Giá
+              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Xem bảng giá & In
             </button>
-            <div class="flex gap-1.5">
+            <div class="flex gap-1">
               <button onclick="window.openEditProductModal('${p._id}')" class="p-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100" title="Chỉnh sửa">
                 <i data-lucide="edit-2" class="w-4 h-4"></i>
               </button>
@@ -991,70 +972,82 @@ window.setProductRecipeMode = function(mode) {
   const btnBatch = document.getElementById('prod-mode-batch-btn');
   if (btnPer && btnBatch) {
     if (isBatch) {
-      btnBatch.classList.add('border-amber-500', 'bg-amber-50');
-      btnBatch.classList.remove('border-slate-200', 'bg-white');
-      btnPer.classList.remove('border-emerald-500', 'bg-emerald-50');
-      btnPer.classList.add('border-slate-200', 'bg-white');
+      btnBatch.className = 'p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-left transition-all';
+      btnPer.className = 'p-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-left transition-all';
     } else {
-      btnPer.classList.add('border-emerald-500', 'bg-emerald-50');
-      btnPer.classList.remove('border-slate-200', 'bg-white');
-      btnBatch.classList.remove('border-amber-500', 'bg-amber-50');
-      btnBatch.classList.add('border-slate-200', 'bg-white');
+      btnPer.className = 'p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-left transition-all';
+      btnBatch.className = 'p-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-left transition-all';
     }
   }
 
-  document.getElementById('prod-batch-config-section')?.classList.toggle('hidden', !isBatch);
+  document.getElementById('prod-batch-yield-bar')?.classList.toggle('hidden', !isBatch);
+  document.getElementById('prod-batch-split-toggle')?.classList.toggle('hidden', !isBatch);
+  document.getElementById('prod-percup-extras-block')?.classList.toggle('hidden', !isBatch);
+
   const labelEl = document.getElementById('prod-recipe-section-label');
   if (labelEl) {
-    labelEl.innerHTML = isBatch
-      ? '<i data-lucide="flame" class="w-4 h-4 text-amber-600"></i> Nguyên liệu nấu 1 MẺ LỚN (VD: cả nồi 2 Lít)'
-      : '<i data-lucide="scale" class="w-4 h-4 text-emerald-600"></i> Định lượng nguyên liệu cho 1 ly';
+    labelEl.textContent = isBatch
+      ? 'Nhập nguyên liệu cho 1 MẺ LỚN (VD: cả nồi 2 Lít)'
+      : 'Nhập nguyên liệu cho 1 LY CHUẨN';
   }
 
-  const varHint = document.getElementById('variant-section-hint');
-  const quickBtns = document.getElementById('variant-quick-btns');
+  const sizesTitle = document.getElementById('prod-sizes-title');
+  const sizesSub = document.getElementById('prod-sizes-subtitle');
+  const quickBtns = document.getElementById('size-quick-add-btns');
+
   if (isBatch) {
-    if (varHint) varHint.textContent = 'Nhập lượng rót (ml) hoặc số ly/mẻ cho từng size lớn hơn / chai';
+    if (sizesTitle) sizesTitle.textContent = 'Chia mẻ ra các cỡ ly / dung tích & Đặt giá bán';
+    if (sizesSub) sizesSub.textContent = 'Mỗi dòng là 1 cỡ ly/chai với lượng rót khác nhau — App tự chia vốn từ mẻ lớn';
     if (quickBtns) {
       quickBtns.innerHTML = `
-        <button type="button" onclick="window.addProductVariantRow('Ly L (700ml)', 700, 1.4, '', 500, 210, 9)" class="px-2 py-1 text-[11px] font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-200">+ Ly L (rót 210ml)</button>
-        <button type="button" onclick="window.addProductVariantRow('Chai 330ml', 330, 2.2, '', 2200, 330, 6)" class="px-2 py-1 text-[11px] font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg border border-blue-200">+ Chai 330ml</button>
-        <button type="button" onclick="window.addProductVariantRow('', '', 1.2, '', 0, 200, 10)" class="px-2 py-1 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg">+ Size tùy chỉnh</button>
+        <button type="button" onclick="window.addUnifiedSizeRow({ name: 'Ly S (350ml)', portionVolume: 120, portionCount: 16, packagingCost: 1100, price: 20000 })" class="px-2 py-1 text-[11px] font-bold bg-white hover:bg-emerald-50 text-slate-700 rounded-lg border border-slate-200">+ Ly S (120ml)</button>
+        <button type="button" onclick="window.addUnifiedSizeRow({ name: 'Ly M (500ml)', portionVolume: 150, portionCount: 13, packagingCost: 1300, price: 25000 })" class="px-2 py-1 text-[11px] font-bold bg-white hover:bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200">+ Ly M (150ml)</button>
+        <button type="button" onclick="window.addUnifiedSizeRow({ name: 'Ly L (700ml)', portionVolume: 210, portionCount: 9, packagingCost: 1800, price: 32000 })" class="px-2 py-1 text-[11px] font-bold bg-white hover:bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200">+ Ly L (210ml)</button>
+        <button type="button" onclick="window.addUnifiedSizeRow({ name: 'Chai 330ml', portionVolume: 330, portionCount: 6, packagingCost: 2200, price: 28000 })" class="px-2 py-1 text-[11px] font-bold bg-white hover:bg-blue-50 text-blue-700 rounded-lg border border-blue-200">+ Chai 330ml</button>
+        <button type="button" onclick="window.addUnifiedSizeRow({ name: '', portionVolume: 180, portionCount: 11, packagingCost: 1300, price: '' })" class="px-2 py-1 text-[11px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg">+ Cỡ khác</button>
       `;
     }
   } else {
-    if (varHint) varHint.textContent = 'Tự nhân định lượng theo hệ số để tính ngay giá vốn từng size';
+    if (sizesTitle) sizesTitle.textContent = 'Các cỡ ly (Size) & Giá bán cho khách';
+    if (sizesSub) sizesSub.textContent = 'Dòng đầu là Size chuẩn (x1). Có thể thêm Size L (x1.4), Size XL (x2.0)...';
     if (quickBtns) {
       quickBtns.innerHTML = `
-        <button type="button" onclick="window.addProductVariantRow('Ly 700ml', 700, 1.4, '', 600)" class="px-2 py-1 text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200">+ Size 700ml (x1.4)</button>
-        <button type="button" onclick="window.addProductVariantRow('Ly 1000ml', 1000, 2.0, '', 1900)" class="px-2 py-1 text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200">+ Size 1000ml (x2.0)</button>
-        <button type="button" onclick="window.addProductVariantRow('', '', 1.2, '', 0)" class="px-2 py-1 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg">+ Size tùy chỉnh</button>
+        <button type="button" onclick="window.addUnifiedSizeRow({ name: 'Ly L (700ml)', scaleFactor: 1.4, packagingCost: 1800, price: '' })" class="px-2 py-1 text-[11px] font-bold bg-white hover:bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200">+ Ly L (x1.4)</button>
+        <button type="button" onclick="window.addUnifiedSizeRow({ name: 'Ly XL (1000ml)', scaleFactor: 2.0, packagingCost: 2500, price: '' })" class="px-2 py-1 text-[11px] font-bold bg-white hover:bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200">+ Ly XL (x2.0)</button>
+        <button type="button" onclick="window.addUnifiedSizeRow({ name: '', scaleFactor: 1.2, packagingCost: 0, price: '' })" class="px-2 py-1 text-[11px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg">+ Cỡ khác</button>
       `;
     }
   }
 
-  refreshVariantRowsModeDisplay();
+  syncBatchSplitModeUI();
   if (window.lucide) window.lucide.createIcons();
-  updateLiveCostCalculation();
 };
 
 function syncBatchSplitModeUI() {
-  const mode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
-  document.getElementById('batch-split-by-volume-wrap')?.classList.toggle('hidden', mode !== 'by_volume');
-  document.getElementById('batch-split-by-count-wrap')?.classList.toggle('hidden', mode !== 'by_count');
-  refreshVariantRowsModeDisplay();
-  updateLiveCostCalculation();
-}
-
-function refreshVariantRowsModeDisplay() {
   const isBatch = document.getElementById('prod-recipe-mode')?.value === 'batch';
   const splitMode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
+  const yieldUnit = document.getElementById('prod-batch-yield-unit')?.value || 'ml';
 
-  document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
-    vRow.querySelector('.var-percup-col')?.classList.toggle('hidden', isBatch);
-    vRow.querySelector('.var-batch-vol-col')?.classList.toggle('hidden', !(isBatch && splitMode === 'by_volume'));
-    vRow.querySelector('.var-batch-cnt-col')?.classList.toggle('hidden', !(isBatch && splitMode === 'by_count'));
+  const colHeader = document.getElementById('size-col-metric-header');
+  if (colHeader) {
+    if (!isBatch) colHeader.textContent = 'Hệ số định lượng';
+    else colHeader.textContent = splitMode === 'by_count' ? 'Số ly / 1 mẻ' : `Lượng rót (${yieldUnit}/ly)`;
+  }
+
+  document.querySelectorAll('#unified-sizes-container .size-row').forEach((row, idx) => {
+    row.querySelector('.sz-percup-col')?.classList.toggle('hidden', isBatch);
+    row.querySelector('.sz-batch-vol-col')?.classList.toggle('hidden', !(isBatch && splitMode === 'by_volume'));
+    row.querySelector('.sz-batch-cnt-col')?.classList.toggle('hidden', !(isBatch && splitMode === 'by_count'));
+    const unitTag = row.querySelector('.sz-unit-tag');
+    if (unitTag) unitTag.textContent = yieldUnit;
+    // Dòng đầu tiên ở chế độ per_cup mặc định hệ số 1
+    if (!isBatch && idx === 0) {
+      const sc = row.querySelector('.sz-scale');
+      if (sc && !Number(sc.value)) sc.value = '1';
+    }
   });
+
+  updateLiveCostCalculation();
 }
 
 window.addPerCupExtraRow = function(ingredientId = '', quantity = '') {
@@ -1063,12 +1056,12 @@ window.addPerCupExtraRow = function(ingredientId = '', quantity = '') {
   row.className = 'flex flex-wrap sm:flex-nowrap items-center gap-2 text-xs';
 
   row.innerHTML = `
-    <select class="extra-ing-select flex-1 min-w-[180px] px-2.5 py-1.5 border border-amber-200 rounded-lg bg-white">
+    <select class="extra-ing-select flex-1 min-w-[180px] px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white">
       ${buildIngredientOptionsHtml(ingredientId)}
     </select>
     <div class="flex items-center w-28">
-      <input type="number" min="0.01" step="any" value="${quantity}" placeholder="Lượng/ly" class="extra-qty-input w-full px-2 py-1.5 border border-amber-200 rounded-l-lg bg-white font-semibold">
-      <span class="extra-unit-display px-2 py-1.5 bg-amber-100 text-amber-800 rounded-r-lg border border-l-0 border-amber-200">cái</span>
+      <input type="number" min="0.01" step="any" value="${quantity}" placeholder="Lượng/ly" class="extra-qty-input w-full px-2 py-1.5 border border-slate-200 rounded-l-lg bg-white font-semibold">
+      <span class="extra-unit-display px-2 py-1.5 bg-slate-100 text-slate-600 rounded-r-lg border border-l-0 border-slate-200">cái</span>
     </div>
     <span class="extra-row-cost font-bold text-slate-700 w-20 text-right">0 đ</span>
     <button type="button" class="btn-del-extra p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
@@ -1091,50 +1084,82 @@ window.addPerCupExtraRow = function(ingredientId = '', quantity = '') {
   updateLiveCostCalculation();
 };
 
-window.addProductVariantRow = function(name = '', volumeMl = '', scaleFactor = 1.4, price = '', extraPackagingCost = 0, portionVolume = 210, portionCount = 10) {
-  const container = document.getElementById('variant-rows-container');
+window.addUnifiedSizeRow = function({
+  name = '',
+  portionVolume = 150,
+  portionCount = 13,
+  scaleFactor = 1,
+  packagingCost = 0,
+  price = ''
+} = {}) {
+  const container = document.getElementById('unified-sizes-container');
   const row = document.createElement('div');
-  row.className = 'variant-row grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs';
+  row.className = 'size-row bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2';
+
+  const yieldUnit = document.getElementById('prod-batch-yield-unit')?.value || 'ml';
 
   row.innerHTML = `
-    <input type="text" placeholder="VD: Ly L (700ml)" value="${escapeHtml(name)}" class="var-name col-span-3 px-2 py-1.5 border border-slate-200 rounded-lg bg-white font-semibold">
-    <div class="col-span-2">
-      <input type="number" placeholder="700ml" value="${volumeMl}" min="0" class="var-vol w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white" title="Dung tích hiển thị (ml)">
+    <div class="grid grid-cols-12 gap-2 items-center text-xs">
+      <div class="col-span-12 sm:col-span-4">
+        <label class="sm:hidden block text-[10px] font-bold text-slate-500 mb-0.5">Tên cỡ ly / chai</label>
+        <input type="text" required placeholder="VD: Ly M (500ml)" value="${escapeHtml(name)}" class="sz-name w-full px-2.5 py-2 border border-slate-200 rounded-lg font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+      </div>
+
+      <div class="sz-batch-vol-col col-span-6 sm:col-span-3">
+        <label class="sm:hidden block text-[10px] font-bold text-slate-500 mb-0.5">Lượng rót (${yieldUnit}/ly)</label>
+        <div class="flex items-center">
+          <input type="number" min="1" step="any" value="${portionVolume}" class="sz-portion-vol w-full px-2.5 py-2 border border-amber-300 rounded-l-lg font-extrabold text-amber-800 bg-amber-50/40 focus:outline-none">
+          <span class="sz-unit-tag px-2 py-2 bg-amber-100 text-amber-900 font-bold rounded-r-lg border border-l-0 border-amber-300">${escapeHtml(yieldUnit)}</span>
+        </div>
+      </div>
+
+      <div class="sz-batch-cnt-col hidden col-span-6 sm:col-span-3">
+        <label class="sm:hidden block text-[10px] font-bold text-slate-500 mb-0.5">Số ly / 1 mẻ</label>
+        <div class="flex items-center">
+          <input type="number" min="1" step="1" value="${portionCount}" class="sz-portion-cnt w-full px-2.5 py-2 border border-amber-300 rounded-l-lg font-extrabold text-amber-800 bg-amber-50/40 focus:outline-none">
+          <span class="px-2 py-2 bg-amber-100 text-amber-900 font-bold rounded-r-lg border border-l-0 border-amber-300">ly</span>
+        </div>
+      </div>
+
+      <div class="sz-percup-col hidden col-span-6 sm:col-span-3">
+        <label class="sm:hidden block text-[10px] font-bold text-slate-500 mb-0.5">Hệ số định lượng</label>
+        <div class="flex items-center">
+          <span class="px-2 py-2 bg-slate-100 text-slate-500 font-bold rounded-l-lg border border-r-0 border-slate-200">x</span>
+          <input type="number" min="0.2" step="0.05" value="${scaleFactor}" class="sz-scale w-full px-2.5 py-2 border border-slate-200 rounded-r-lg font-bold text-emerald-700 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="col-span-6 sm:col-span-2">
+        <label class="sm:hidden block text-[10px] font-bold text-slate-500 mb-0.5">Tiền ly/chai (đ)</label>
+        <input type="number" min="0" step="100" value="${packagingCost}" placeholder="1300" class="sz-pkg w-full px-2 py-2 border border-slate-200 rounded-lg text-slate-700 font-semibold focus:outline-none" title="Tiền ly, nắp, ống hút hoặc vỏ chai của cỡ này">
+      </div>
+
+      <div class="col-span-10 sm:col-span-2">
+        <label class="sm:hidden block text-[10px] font-bold text-slate-500 mb-0.5">Giá bán (đ)</label>
+        <input type="number" required min="0" step="500" value="${price}" placeholder="25000" class="sz-price w-full px-2 py-2 border border-emerald-300 rounded-lg font-extrabold text-slate-900 bg-emerald-50/30 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+      </div>
+
+      <div class="col-span-2 sm:col-span-1 flex justify-end">
+        <button type="button" class="btn-del-size p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Xóa cỡ này">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
     </div>
-    <div class="var-percup-col col-span-2 flex items-center">
-      <span class="text-[10px] text-slate-500 mr-1">x</span>
-      <input type="number" step="0.05" min="0.2" value="${scaleFactor}" class="var-scale w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white font-bold text-emerald-700" title="Hệ số nhân định lượng">
-    </div>
-    <div class="var-batch-vol-col hidden col-span-2 flex items-center">
-      <input type="number" step="5" min="1" value="${portionVolume || 200}" placeholder="ml rót" class="var-portion-vol w-full px-2 py-1.5 border border-amber-300 rounded-lg bg-white font-bold text-amber-800" title="Lượng rót từ mẻ (ml/ly)">
-      <span class="text-[10px] text-slate-500 ml-1">ml</span>
-    </div>
-    <div class="var-batch-cnt-col hidden col-span-2 flex items-center">
-      <input type="number" step="1" min="1" value="${portionCount || 10}" placeholder="số ly" class="var-portion-cnt w-full px-2 py-1.5 border border-amber-300 rounded-lg bg-white font-bold text-amber-800" title="Số ly chia được từ 1 mẻ">
-      <span class="text-[10px] text-slate-500 ml-1">ly</span>
-    </div>
-    <div class="col-span-2">
-      <input type="number" min="0" step="100" value="${extraPackagingCost}" placeholder="+Bao bì" class="var-pkg w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white" title="Phụ phí bao bì thêm (đ)">
-    </div>
-    <div class="col-span-2">
-      <input type="number" min="0" step="500" value="${price}" placeholder="Giá bán" class="var-price w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white font-bold" title="Giá bán lẻ (đ)">
-    </div>
-    <div class="col-span-1 flex items-center justify-end gap-1">
-      <button type="button" class="btn-del-var p-1 text-slate-400 hover:text-rose-600"><i data-lucide="x" class="w-4 h-4"></i></button>
-    </div>
-    <div class="col-span-12 var-live-info text-[11px] text-slate-500 flex flex-wrap justify-between px-1 gap-1"></div>
+    <div class="sz-live-summary text-[11px] bg-slate-50 px-2.5 py-1.5 rounded-lg text-slate-600 flex flex-wrap items-center justify-between gap-1.5"></div>
   `;
 
   container.appendChild(row);
   row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateLiveCostCalculation));
-  row.querySelector('.btn-del-var').addEventListener('click', () => {
+  row.querySelector('.btn-del-size').addEventListener('click', () => {
+    if (container.querySelectorAll('.size-row').length <= 1) {
+      return showToast('Cần giữ lại ít nhất 1 cỡ ly để bán!', 'warning');
+    }
     row.remove();
     updateLiveCostCalculation();
   });
 
-  refreshVariantRowsModeDisplay();
+  syncBatchSplitModeUI();
   if (window.lucide) window.lucide.createIcons();
-  updateLiveCostCalculation();
 };
 
 function updateRowUnitDisplay(row, selectSelector, unitSelector) {
@@ -1145,6 +1170,8 @@ function updateRowUnitDisplay(row, selectSelector, unitSelector) {
     unitSpan.textContent = selectedOpt.dataset.unit;
   }
 }
+
+let cachedProductSimSizes = [];
 
 export function updateLiveCostCalculation() {
   const isBatch = document.getElementById('prod-recipe-mode')?.value === 'batch';
@@ -1172,7 +1199,6 @@ export function updateLiveCostCalculation() {
   });
 
   let extrasCostPerCup = 0;
-  let extrasKcalPerCup = 0;
   if (isBatch) {
     document.querySelectorAll('#percup-extras-container > div').forEach(row => {
       const select = row.querySelector('.extra-ing-select');
@@ -1183,197 +1209,115 @@ export function updateLiveCostCalculation() {
         const c = (Number(opt.dataset.cost) || 0) * qty;
         costSpan.textContent = formatMoney(c);
         extrasCostPerCup += c;
-        extrasKcalPerCup += (Number(opt.dataset.kcal) || 0) * qty;
       } else if (costSpan) {
         costSpan.textContent = '0 đ';
       }
     });
   }
 
-  const pkgCost = Number(document.getElementById('prod-packaging-cost')?.value) || 0;
   const wastePct = Number(document.getElementById('prod-waste-percent')?.value) || 0;
   const targetPct = Number(document.getElementById('prod-target-cost')?.value) || 30;
-  const salePrice = Number(document.getElementById('prod-price')?.value) || 0;
-
-  let totalCost = 0;
-  let totalKcal = 0;
-
-  if (isBatch) {
-    const yieldVol = Math.max(0, Number(document.getElementById('prod-batch-yield-vol')?.value) || 0);
-    const yieldUnit = document.getElementById('prod-batch-yield-unit')?.value || 'ml';
-    const splitMode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
-    const batchTotalCost = Math.round(rawRecipeCost * (1 + wastePct / 100));
-    const costPerUnitYield = yieldVol > 0 ? Math.round((batchTotalCost / yieldVol) * 100) / 100 : 0;
-
-    let cupsPerBatch = 0;
-    let frac = 0;
-    let leftover = 0;
-    let portionVol = 0;
-
-    if (splitMode === 'by_count') {
-      cupsPerBatch = Math.max(1, Number(document.getElementById('prod-batch-portion-count')?.value) || 1);
-      frac = 1 / cupsPerBatch;
-      portionVol = yieldVol > 0 ? Math.round(yieldVol / cupsPerBatch) : 0;
-      const cntRes = document.getElementById('batch-split-count-result');
-      if (cntRes) cntRes.textContent = `→ ~${formatNumber(portionVol)} ${yieldUnit} / ly`;
-    } else {
-      portionVol = Math.max(1, Number(document.getElementById('prod-batch-portion-vol')?.value) || 150);
-      if (yieldVol > 0) {
-        cupsPerBatch = Math.floor(yieldVol / portionVol);
-        leftover = Math.round(yieldVol - cupsPerBatch * portionVol);
-        frac = portionVol / yieldVol;
-      }
-      const volRes = document.getElementById('batch-split-vol-result');
-      if (volRes) volRes.textContent = `→ ${cupsPerBatch} ly / mẻ${leftover > 0 ? ` (dư ${leftover}${yieldUnit})` : ''}`;
-    }
-
-    const liquidCostPerCup = Math.round(batchTotalCost * frac);
-    totalCost = Math.round(liquidCostPerCup + extrasCostPerCup + pkgCost);
-    totalKcal = Math.round(rawRecipeKcal * frac + extrasKcalPerCup);
-
-    const pillEl = document.getElementById('batch-live-unit-cost-pill');
-    if (pillEl) {
-      pillEl.textContent = `Tổng mẻ: ${formatMoney(batchTotalCost)} (${formatMoneyExact(costPerUnitYield)}/${yieldUnit})`;
-    }
-
-    const revBatch = cupsPerBatch * salePrice;
-    const profitBatch = cupsPerBatch * (salePrice - totalCost);
-    const bannerEl = document.getElementById('batch-profit-banner');
-    if (bannerEl) {
-      bannerEl.innerHTML = `
-        <span>1 mẻ (${cupsPerBatch} ly) · Nước ${formatMoney(liquidCostPerCup)}/ly${extrasCostPerCup + pkgCost > 0 ? ` + Phụ/Bao bì ${formatMoney(extrasCostPerCup + pkgCost)}/ly` : ''}</span>
-        <span class="font-extrabold text-emerald-700">Doanh thu ${formatMoney(revBatch)} · Lãi ~${formatMoney(profitBatch)} / mẻ</span>
-      `;
-    }
-
-    // Live cập nhật các dòng Size mở rộng ở chế độ Batch
-    document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
-      const extraPkg = Number(vRow.querySelector('.var-pkg')?.value) || 0;
-      const vPrice = Number(vRow.querySelector('.var-price')?.value) || 0;
-      let vCups = 0;
-      let vFrac = 0;
-      if (splitMode === 'by_count') {
-        vCups = Math.max(1, Number(vRow.querySelector('.var-portion-cnt')?.value) || 1);
-        vFrac = 1 / vCups;
-      } else {
-        const vVol = Math.max(1, Number(vRow.querySelector('.var-portion-vol')?.value) || 200);
-        vCups = yieldVol > 0 ? Math.floor(yieldVol / vVol) : 0;
-        vFrac = yieldVol > 0 ? vVol / yieldVol : 0;
-      }
-      const vCost = Math.round(batchTotalCost * vFrac + extrasCostPerCup + pkgCost + extraPkg);
-      const vProfit = vPrice - vCost;
-      const vMargin = vPrice > 0 ? Math.round((vProfit / vPrice) * 100) : 0;
-      const vSuggested = suggestRetailPrice(vCost, targetPct);
-
-      vRow.querySelector('.var-live-info').innerHTML = `
-        <span>Chia được <b class="text-amber-800">${vCups} ly/mẻ</b> · Vốn <b class="text-amber-700">${formatMoney(vCost)}/ly</b></span>
-        <span>Gợi ý: <b class="text-blue-700">${formatMoney(vSuggested)}</b> ${vPrice > 0 ? `· Lãi <b class="text-emerald-700">${vMargin}% (${formatMoney(vCups * vProfit)}/mẻ)</b>` : ''}</span>
-      `;
-    });
-  } else {
-    totalCost = Math.round(rawRecipeCost * (1 + wastePct / 100) + pkgCost);
-    totalKcal = Math.round(rawRecipeKcal);
-
-    document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
-      const factor = Number(vRow.querySelector('.var-scale').value) || 1;
-      const extraPkg = Number(vRow.querySelector('.var-pkg').value) || 0;
-      const vPrice = Number(vRow.querySelector('.var-price').value) || 0;
-      const vCost = Math.round(rawRecipeCost * factor * (1 + wastePct / 100) + pkgCost + extraPkg);
-      const vKcal = Math.round(rawRecipeKcal * factor);
-      const vProfit = vPrice - vCost;
-      const vMargin = vPrice > 0 ? Math.round((vProfit / vPrice) * 100) : 0;
-      const vSuggested = suggestRetailPrice(vCost, targetPct);
-
-      vRow.querySelector('.var-live-info').innerHTML = `
-        <span>Vốn: <b class="text-amber-700">${formatMoney(vCost)}</b> ${vKcal > 0 ? `· ${vKcal} kcal` : ''}</span>
-        <span>Gợi ý bán: <b class="text-blue-700">${formatMoney(vSuggested)}</b> ${vPrice > 0 ? `· Lãi <b class="text-emerald-700">${vMargin}%</b>` : ''}</span>
-      `;
-    });
-  }
-
-  const grossProfit = salePrice - totalCost;
-  const margin = salePrice > 0 ? Math.round((grossProfit / salePrice) * 100) : 0;
-  const suggested = suggestRetailPrice(totalCost, targetPct);
-
-  document.getElementById('preview-cost').textContent = formatMoney(totalCost);
-  document.getElementById('preview-profit').textContent = formatMoney(grossProfit);
-  document.getElementById('preview-margin').textContent = `(${margin}%)`;
-  document.getElementById('preview-target-pct').textContent = targetPct;
-  document.getElementById('preview-suggested-price').textContent = formatMoney(suggested);
-  document.getElementById('preview-kcal').textContent = `${Math.round(totalKcal)} kcal`;
-
-  const costTipEl = document.getElementById('preview-cost-tip');
-  if (costTipEl) {
-    if (targetPct > 0 && targetPct < 15) {
-      const mult = Math.round((100 / targetPct) * 10) / 10;
-      costTipEl.classList.remove('hidden');
-      costTipEl.innerHTML = `💡 <b>Lưu ý:</b> Bạn đang nhập <b>${targetPct}% giá vốn</b> — nghĩa là giá bán gợi ý sẽ gấp <b>${mult} lần</b> giá vốn. Chuẩn quán cafe / trà sữa thường để <b>25% – 35%</b> (bán gấp ~3 lần vốn).`;
-    } else {
-      costTipEl.classList.add('hidden');
-    }
-  }
-
-  // Cập nhật bộ ghép thử "Chọn dung tích + Nhiều Topping -> Ra giá 1 ly hoàn chỉnh" ngay trong form Thêm Món
-  updateProductModalCupSimulator(totalCost, salePrice, isBatch, rawRecipeCost, extrasCostPerCup, pkgCost, wastePct, targetPct);
-}
-
-let cachedProductSimSizes = [];
-
-function updateProductModalCupSimulator(baseCost, basePrice, isBatch, rawRecipeCost, extrasCostPerCup, pkgCost, wastePct, targetPct) {
-  const sizeSelect = document.getElementById('prod-sim-size-select');
-  const topListEl = document.getElementById('prod-sim-toppings-list');
-  const resEl = document.getElementById('prod-sim-result');
-  if (!sizeSelect || !topListEl || !resEl) return;
-
-  const baseName = document.getElementById('prod-base-size')?.value?.trim() || 'Size mặc định';
   const yieldVol = Math.max(0, Number(document.getElementById('prod-batch-yield-vol')?.value) || 0);
+  const yieldUnit = document.getElementById('prod-batch-yield-unit')?.value || 'ml';
   const splitMode = document.querySelector('input[name="prod-batch-split-mode"]:checked')?.value || 'by_volume';
   const batchTotalCost = Math.round(rawRecipeCost * (1 + wastePct / 100));
+  const costPerUnitYield = yieldVol > 0 ? Math.round((batchTotalCost / yieldVol) * 100) / 100 : 0;
 
-  const sizes = [{ id: 'base', name: baseName, cost: baseCost, price: basePrice }];
-
-  document.querySelectorAll('#variant-rows-container .variant-row').forEach((vRow, idx) => {
-    const vName = vRow.querySelector('.var-name')?.value?.trim() || `Size ${idx + 2}`;
-    const extraPkg = Number(vRow.querySelector('.var-pkg')?.value) || 0;
-    const vPrice = Number(vRow.querySelector('.var-price')?.value) || 0;
-    let vCost = 0;
-    if (isBatch) {
-      let frac = 0;
-      if (splitMode === 'by_count') {
-        const cnt = Math.max(1, Number(vRow.querySelector('.var-portion-cnt')?.value) || 1);
-        frac = 1 / cnt;
-      } else {
-        const vol = Math.max(1, Number(vRow.querySelector('.var-portion-vol')?.value) || 200);
-        frac = yieldVol > 0 ? vol / yieldVol : 0;
-      }
-      vCost = Math.round(batchTotalCost * frac + extrasCostPerCup + pkgCost + extraPkg);
-    } else {
-      const factor = Number(vRow.querySelector('.var-scale')?.value) || 1;
-      vCost = Math.round(rawRecipeCost * factor * (1 + wastePct / 100) + pkgCost + extraPkg);
+  if (isBatch) {
+    const pillEl = document.getElementById('batch-live-unit-cost-pill');
+    if (pillEl) {
+      pillEl.textContent = `Tổng vốn mẻ: ${formatMoney(batchTotalCost)} (${formatMoneyExact(costPerUnitYield)}/${yieldUnit})`;
     }
-    sizes.push({ id: `var-${idx}`, name: vName, cost: vCost, price: vPrice });
-  });
-
-  cachedProductSimSizes = sizes;
-  const prevVal = sizeSelect.value;
-  sizeSelect.innerHTML = sizes.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (vốn ${formatMoney(s.cost)})</option>`).join('');
-  if (sizes.some(s => s.id === prevVal)) sizeSelect.value = prevVal;
-
-  // Render danh sách checkbox topping (giữ lại trạng thái đang tích)
-  const prevChecked = new Set(Array.from(topListEl.querySelectorAll('input:checked')).map(i => i.value));
-  if (!globalToppings.length) {
-    topListEl.innerHTML = `<span class="text-[11px] text-slate-500">Chưa có topping gọi thêm nào. Bạn có thể tạo ở tab <b>Menu & Giá thành → Topping gọi thêm</b>.</span>`;
-  } else {
-    topListEl.innerHTML = globalToppings.map(t => `
-      <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-purple-200 hover:border-purple-400 cursor-pointer text-[11px]">
-        <input type="checkbox" class="prod-sim-top-cb accent-purple-600" value="${t._id}" ${prevChecked.has(t._id) ? 'checked' : ''} onchange="window.recalcProductModalCupSimulator()">
-        <span class="font-semibold text-slate-800">${escapeHtml(t.name)}</span>
-        <span class="text-purple-700 font-bold">+${Math.round(t.price / 1000)}k</span>
-      </label>
-    `).join('');
   }
 
-  window.recalcProductModalCupSimulator();
+  // Tính live cho TẤT CẢ các cỡ ly trong bảng thống nhất
+  const simSizes = [];
+  document.querySelectorAll('#unified-sizes-container .size-row').forEach((row, idx) => {
+    const name = row.querySelector('.sz-name')?.value?.trim() || `Cỡ ${idx + 1}`;
+    const pkg = Number(row.querySelector('.sz-pkg')?.value) || 0;
+    const price = Number(row.querySelector('.sz-price')?.value) || 0;
+    const summaryEl = row.querySelector('.sz-live-summary');
+
+    let cupCost = 0;
+    let leftInfo = '';
+    let rightInfo = '';
+
+    if (isBatch) {
+      let cups = 0;
+      let frac = 0;
+      let leftover = 0;
+      let pVol = 0;
+
+      if (splitMode === 'by_count') {
+        cups = Math.max(1, Number(row.querySelector('.sz-portion-cnt')?.value) || 1);
+        frac = 1 / cups;
+        pVol = yieldVol > 0 ? Math.round(yieldVol / cups) : 0;
+      } else {
+        pVol = Math.max(1, Number(row.querySelector('.sz-portion-vol')?.value) || 150);
+        if (yieldVol > 0) {
+          cups = Math.floor(yieldVol / pVol);
+          leftover = Math.round(yieldVol - cups * pVol);
+          frac = pVol / yieldVol;
+        }
+      }
+
+      const liquidCost = Math.round(batchTotalCost * frac);
+      cupCost = Math.round(liquidCost + extrasCostPerCup + pkg);
+      const profit = price - cupCost;
+      const margin = price > 0 ? Math.round((profit / price) * 100) : 0;
+      const suggested = suggestRetailPrice(cupCost, targetPct);
+      const profitBatch = cups * profit;
+
+      leftInfo = `<span>Chia được <b class="text-amber-800">${cups} ly/mẻ</b>${leftover > 0 ? ` (dư ${leftover}${yieldUnit})` : (splitMode === 'by_count' && pVol > 0 ? ` (~${pVol}${yieldUnit}/ly)` : '')} · Vốn: <b class="text-amber-700">${formatMoney(cupCost)}/ly</b></span>`;
+      rightInfo = price > 0
+        ? `<span>Lãi: <b class="text-emerald-700">${formatMoney(profit)} (${margin}%)</b> · Cả mẻ lãi <b class="text-emerald-800">${formatMoney(profitBatch)}</b></span>`
+        : `<span>Gợi ý giá bán (${targetPct}% vốn): <b class="text-blue-700">${formatMoney(suggested)}</b></span>`;
+    } else {
+      const factor = Number(row.querySelector('.sz-scale')?.value) || 1;
+      cupCost = Math.round(rawRecipeCost * factor * (1 + wastePct / 100) + pkg);
+      const kcal = Math.round(rawRecipeKcal * factor);
+      const profit = price - cupCost;
+      const margin = price > 0 ? Math.round((profit / price) * 100) : 0;
+      const suggested = suggestRetailPrice(cupCost, targetPct);
+
+      leftInfo = `<span>Giá vốn 1 ly: <b class="text-amber-700">${formatMoney(cupCost)}</b>${kcal > 0 ? ` · ${kcal} kcal` : ''}</span>`;
+      rightInfo = price > 0
+        ? `<span>Lãi gộp: <b class="text-emerald-700">${formatMoney(profit)} (${margin}%)</b> · Gợi ý: <b class="text-blue-700">${formatMoney(suggested)}</b></span>`
+        : `<span>Gợi ý giá bán (${targetPct}% vốn): <b class="text-blue-700">${formatMoney(suggested)}</b></span>`;
+    }
+
+    if (summaryEl) summaryEl.innerHTML = `${leftInfo}${rightInfo}`;
+    simSizes.push({ id: `sz-${idx}`, name, cost: cupCost, price });
+  });
+
+  // Cập nhật Bước 4: Bộ ghép thử Size + Nhiều Topping
+  cachedProductSimSizes = simSizes;
+  const sizeSelect = document.getElementById('prod-sim-size-select');
+  const topListEl = document.getElementById('prod-sim-toppings-list');
+  if (sizeSelect && topListEl) {
+    const prevVal = sizeSelect.value;
+    sizeSelect.innerHTML = simSizes.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (vốn ${formatMoney(s.cost)})</option>`).join('');
+    if (simSizes.some(s => s.id === prevVal)) sizeSelect.value = prevVal;
+
+    const prevChecked = new Set(Array.from(topListEl.querySelectorAll('input:checked')).map(i => i.value));
+    if (!globalToppings.length) {
+      topListEl.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2 w-full text-[11px] text-slate-600">
+          <span>Quán chưa tạo topping gọi thêm nào (Trân châu, Pudding, Kem cheese...).</span>
+          <button type="button" onclick="window.openAddToppingModal()" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg">+ Tạo Topping ngay</button>
+        </div>
+      `;
+    } else {
+      topListEl.innerHTML = globalToppings.map(t => `
+        <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-purple-200 hover:border-purple-400 cursor-pointer text-[11px]">
+          <input type="checkbox" class="prod-sim-top-cb accent-purple-600" value="${t._id}" ${prevChecked.has(t._id) ? 'checked' : ''} onchange="window.recalcProductModalCupSimulator()">
+          <span class="font-semibold text-slate-800">${escapeHtml(t.name)}</span>
+          <span class="text-purple-700 font-bold">+${Math.round(t.price / 1000)}k</span>
+        </label>
+      `).join('');
+    }
+    window.recalcProductModalCupSimulator();
+  }
 }
 
 window.recalcProductModalCupSimulator = function() {
@@ -1407,13 +1351,13 @@ window.recalcProductModalCupSimulator = function() {
   resEl.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
-        <span class="font-bold text-slate-900">1 ly ${escapeHtml(chosen.name)}</span>${topNames.length ? ` <span class="text-purple-700 font-semibold">+ ${topNames.map(escapeHtml).join(' + ')}</span>` : ''}
+        <span class="font-bold text-slate-900">1 ly ${escapeHtml(chosen.name)}</span>${topNames.length ? ` <span class="text-purple-700 font-semibold">+ ${topNames.map(escapeHtml).join(' + ')}</span>` : ' <span class="text-slate-400">(chưa thêm topping)</span>'}
         <div class="text-[11px] text-slate-500 mt-0.5">
-          Vốn nước & bao bì (${formatMoney(chosen.cost)}) ${topCost > 0 ? `+ Vốn topping (${formatMoney(topCost)})` : ''} = <b class="text-amber-700">${formatMoney(totalCost)}</b>
+          Vốn ly (${formatMoney(chosen.cost)})${topCost > 0 ? ` + Vốn topping (${formatMoney(topCost)})` : ''} = <b class="text-amber-700">${formatMoney(totalCost)}</b>
         </div>
       </div>
       <div class="text-right">
-        <div class="text-sm font-extrabold text-emerald-700">Giá bán: ${formatMoney(totalPrice)}</div>
+        <div class="text-sm font-extrabold text-emerald-700">Giá khách trả: ${formatMoney(totalPrice)}</div>
         <div class="text-[11px] text-slate-600">Lãi: <b class="text-emerald-700">${formatMoney(profit)} (${margin}%)</b> · Gợi ý: <b class="text-blue-700">${formatMoney(suggested)}</b></div>
       </div>
     </div>
@@ -1422,46 +1366,37 @@ window.recalcProductModalCupSimulator = function() {
 
 window.openAddProductModal = async function() {
   if (!globalIngredients.length) globalIngredients = await API.getIngredients();
+  if (!globalToppings.length) globalToppings = await API.getToppings();
 
-  document.getElementById('modal-product-title').textContent = 'Thêm Món Nước Mới & Công Thức';
+  document.getElementById('modal-product-title').textContent = 'Thêm Món Nước Mới';
   document.getElementById('prod-id').value = '';
   document.getElementById('prod-name').value = '';
   document.getElementById('prod-category').value = 'Trà sữa';
-  document.getElementById('prod-price').value = '';
-  document.getElementById('prod-base-size').value = 'Ly 500ml';
-  document.getElementById('prod-base-vol').value = '500';
-  document.getElementById('prod-target-cost').value = '30';
-  document.getElementById('prod-packaging-cost').value = '0';
-  document.getElementById('prod-packaging-note').value = 'Ly, muỗng, ống hút';
-  document.getElementById('prod-waste-percent').value = '0';
   document.getElementById('prod-image').value = '🧋';
   document.getElementById('prod-description').value = '';
+  document.getElementById('prod-target-cost').value = '30';
+  document.getElementById('prod-packaging-note').value = 'Ly, nắp, ống hút';
+  document.getElementById('prod-waste-percent').value = '0';
 
   document.getElementById('prod-batch-yield-vol').value = '2000';
   document.getElementById('prod-batch-yield-unit').value = 'ml';
   document.querySelector('input[name="prod-batch-split-mode"][value="by_volume"]').checked = true;
-  document.getElementById('prod-batch-portion-vol').value = '150';
-  document.getElementById('prod-batch-portion-count').value = '15';
-  document.getElementById('percup-extras-container').innerHTML = '';
-
-  document.getElementById('prod-bottling-enabled').checked = false;
-  document.getElementById('prod-bottling-fields').classList.add('hidden');
-  document.getElementById('prod-bottle-vol').value = '330';
-  document.getElementById('prod-bottle-cost').value = '2200';
-  document.getElementById('prod-bottle-price').value = '28000';
 
   document.getElementById('recipe-rows-container').innerHTML = '';
-  document.getElementById('variant-rows-container').innerHTML = '';
+  document.getElementById('percup-extras-container').innerHTML = '';
+  document.getElementById('unified-sizes-container').innerHTML = '';
 
-  window.setProductRecipeMode('per_cup');
-  syncBatchSplitModeUI();
+  window.setProductRecipeMode('batch');
   addRecipeRow();
   addRecipeRow();
+  window.addUnifiedSizeRow({ name: 'Ly M (500ml)', portionVolume: 150, portionCount: 13, scaleFactor: 1, packagingCost: 1300, price: 25000 });
+  window.addUnifiedSizeRow({ name: 'Ly L (700ml)', portionVolume: 210, portionCount: 9, scaleFactor: 1.4, packagingCost: 1800, price: 32000 });
   window.openModal('modal-product');
 };
 
 window.openEditProductModal = async function(productId) {
   if (!globalIngredients.length) globalIngredients = await API.getIngredients();
+  if (!globalToppings.length) globalToppings = await API.getToppings();
   const p = await API.getProduct(productId);
   if (!p) return;
 
@@ -1469,39 +1404,17 @@ window.openEditProductModal = async function(productId) {
   document.getElementById('prod-id').value = p._id;
   document.getElementById('prod-name').value = p.name;
   document.getElementById('prod-category').value = p.category;
-  document.getElementById('prod-price').value = p.price;
-  document.getElementById('prod-base-size').value = p.baseSizeLabel || 'Ly 500ml';
-  document.getElementById('prod-base-vol').value = p.baseVolumeMl || 500;
-  document.getElementById('prod-target-cost').value = p.targetCostPercent || 30;
-  document.getElementById('prod-packaging-cost').value = p.packagingCost || 0;
-  document.getElementById('prod-packaging-note').value = p.packagingNote || 'Ly, muỗng, ống hút';
-  document.getElementById('prod-waste-percent').value = p.wastePercent || 0;
   document.getElementById('prod-image').value = p.image || '🥤';
   document.getElementById('prod-description').value = p.description || '';
+  document.getElementById('prod-target-cost').value = p.targetCostPercent || 30;
+  document.getElementById('prod-packaging-note').value = p.packagingNote || 'Ly, nắp, ống hút';
+  document.getElementById('prod-waste-percent').value = p.wastePercent || 0;
 
   document.getElementById('prod-batch-yield-vol').value = p.batchYieldVolume || 2000;
   document.getElementById('prod-batch-yield-unit').value = p.batchYieldUnit || 'ml';
   const splitModeVal = p.batchSplitMode === 'by_count' ? 'by_count' : 'by_volume';
   const splitRadio = document.querySelector(`input[name="prod-batch-split-mode"][value="${splitModeVal}"]`);
   if (splitRadio) splitRadio.checked = true;
-  document.getElementById('prod-batch-portion-vol').value = p.batchPortionVolume || 150;
-  document.getElementById('prod-batch-portion-count').value = p.batchPortionCount || 15;
-
-  const extrasContainer = document.getElementById('percup-extras-container');
-  extrasContainer.innerHTML = '';
-  if (Array.isArray(p.perCupExtras) && p.perCupExtras.length > 0) {
-    p.perCupExtras.forEach(item => {
-      const ingId = item.ingredient ? (item.ingredient._id || item.ingredient) : '';
-      window.addPerCupExtraRow(ingId, item.quantity);
-    });
-  }
-
-  const bottleEnabled = !!(p.bottlingConfig && p.bottlingConfig.enabled);
-  document.getElementById('prod-bottling-enabled').checked = bottleEnabled;
-  document.getElementById('prod-bottling-fields').classList.toggle('hidden', !bottleEnabled);
-  document.getElementById('prod-bottle-vol').value = p.bottlingConfig?.bottleVolumeMl || 330;
-  document.getElementById('prod-bottle-cost').value = p.bottlingConfig?.bottleCost || 2200;
-  document.getElementById('prod-bottle-price').value = p.bottlingConfig?.sellPricePerBottle || 28000;
 
   const container = document.getElementById('recipe-rows-container');
   container.innerHTML = '';
@@ -1514,22 +1427,43 @@ window.openEditProductModal = async function(productId) {
     addRecipeRow();
   }
 
-  const varContainer = document.getElementById('variant-rows-container');
-  varContainer.innerHTML = '';
-  window.setProductRecipeMode(p.recipeMode === 'batch' ? 'batch' : 'per_cup');
-  syncBatchSplitModeUI();
+  const extrasContainer = document.getElementById('percup-extras-container');
+  extrasContainer.innerHTML = '';
+  if (Array.isArray(p.perCupExtras) && p.perCupExtras.length > 0) {
+    p.perCupExtras.forEach(item => {
+      const ingId = item.ingredient ? (item.ingredient._id || item.ingredient) : '';
+      window.addPerCupExtraRow(ingId, item.quantity);
+    });
+  }
 
-  if (p.variants && p.variants.length > 0) {
+  const sizesContainer = document.getElementById('unified-sizes-container');
+  sizesContainer.innerHTML = '';
+  window.setProductRecipeMode(p.recipeMode === 'batch' ? 'batch' : 'per_cup');
+
+  // Nạp dòng đầu tiên từ Size mặc định
+  window.addUnifiedSizeRow({
+    name: p.baseSizeLabel || 'Ly 500ml',
+    portionVolume: p.batchPortionVolume || 150,
+    portionCount: p.batchPortionCount || 15,
+    scaleFactor: 1,
+    packagingCost: p.packagingCost || 0,
+    price: p.price || 0
+  });
+
+  // Nạp các size mở rộng (nếu có)
+  if (Array.isArray(p.variants) && p.variants.length > 0) {
     p.variants.forEach(v => {
-      window.addProductVariantRow(
-        v.name,
-        v.volumeMl || '',
-        v.scaleFactor || 1,
-        v.price || 0,
-        v.extraPackagingCost || 0,
-        v.portionVolume || v.volumeMl || 200,
-        v.portionCount || 10
-      );
+      const vPkg = v.packagingCost !== null && v.packagingCost !== undefined
+        ? Number(v.packagingCost)
+        : (Number(p.packagingCost) || 0) + (Number(v.extraPackagingCost) || 0);
+      window.addUnifiedSizeRow({
+        name: v.name,
+        portionVolume: v.portionVolume || v.volumeMl || 200,
+        portionCount: v.portionCount || 10,
+        scaleFactor: v.scaleFactor || 1.4,
+        packagingCost: vPkg,
+        price: v.price || 0
+      });
     });
   }
 
@@ -2610,15 +2544,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-add-percup-extra-row')?.addEventListener('click', () => window.addPerCupExtraRow());
   document.getElementById('btn-add-subrecipe-row')?.addEventListener('click', () => window.addSubRecipeRow());
 
+  // Menu guide toggle
+  document.getElementById('btn-toggle-menu-guide')?.addEventListener('click', (e) => {
+    const body = document.getElementById('menu-guide-body');
+    const hidden = body.classList.toggle('hidden');
+    e.currentTarget.textContent = hidden ? 'Xem hướng dẫn' : 'Thu gọn';
+  });
+
   document.getElementById('prod-sim-size-select')?.addEventListener('change', window.recalcProductModalCupSimulator);
 
   // Live calculations in Product modal (both per_cup and batch)
   [
-    'prod-base-size', 'prod-price', 'prod-packaging-cost', 'prod-waste-percent', 'prod-target-cost',
-    'prod-batch-yield-vol', 'prod-batch-yield-unit', 'prod-batch-portion-vol', 'prod-batch-portion-count'
+    'prod-waste-percent', 'prod-target-cost',
+    'prod-batch-yield-vol', 'prod-batch-yield-unit'
   ].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', updateLiveCostCalculation);
-    document.getElementById(id)?.addEventListener('change', updateLiveCostCalculation);
+    document.getElementById(id)?.addEventListener('input', syncBatchSplitModeUI);
+    document.getElementById(id)?.addEventListener('change', syncBatchSplitModeUI);
   });
 
   document.querySelectorAll('input[name="prod-batch-split-mode"]').forEach(r => {
@@ -2646,7 +2587,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       else await API.createTopping(payload);
       showToast('Lưu topping thành công!');
       window.closeModal('modal-topping');
-      loadCostingData();
+      await loadCostingData();
+      updateLiveCostCalculation();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -2871,7 +2813,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Submit Product (per_cup & batch + multi-size + bottling)
+  // Submit Product (unified size table -> base size + variants)
   document.getElementById('form-product')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('prod-id').value;
@@ -2885,6 +2827,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (ingId && qty > 0) recipe.push({ ingredient: ingId, quantity: qty });
     });
 
+    if (!recipe.length) {
+      return showToast('Vui lòng chọn ít nhất 1 nguyên liệu ở Bước 2!', 'warning');
+    }
+
     const perCupExtras = [];
     if (recipeMode === 'batch') {
       document.querySelectorAll('#percup-extras-container > div').forEach(row => {
@@ -2894,17 +2840,34 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    const variants = [];
-    document.querySelectorAll('#variant-rows-container .variant-row').forEach(vRow => {
-      const name = vRow.querySelector('.var-name').value.trim();
-      const volumeMl = Number(vRow.querySelector('.var-vol').value) || 0;
-      const scaleFactor = Number(vRow.querySelector('.var-scale').value) || 1;
-      const portionVolume = Number(vRow.querySelector('.var-portion-vol')?.value) || 0;
-      const portionCount = Number(vRow.querySelector('.var-portion-cnt')?.value) || 0;
-      const extraPackagingCost = Number(vRow.querySelector('.var-pkg').value) || 0;
-      const price = Number(vRow.querySelector('.var-price').value) || 0;
-      if (name) variants.push({ name, volumeMl, scaleFactor, portionVolume, portionCount, extraPackagingCost, price });
+    const allSizeRows = [];
+    document.querySelectorAll('#unified-sizes-container .size-row').forEach(row => {
+      const name = row.querySelector('.sz-name')?.value?.trim();
+      const portionVolume = Number(row.querySelector('.sz-portion-vol')?.value) || 0;
+      const portionCount = Number(row.querySelector('.sz-portion-cnt')?.value) || 0;
+      const scaleFactor = Number(row.querySelector('.sz-scale')?.value) || 1;
+      const packagingCost = Number(row.querySelector('.sz-pkg')?.value) || 0;
+      const price = Number(row.querySelector('.sz-price')?.value) || 0;
+      if (name) {
+        allSizeRows.push({ name, portionVolume, portionCount, scaleFactor, packagingCost, price });
+      }
     });
+
+    if (!allSizeRows.length) {
+      return showToast('Vui lòng nhập ít nhất 1 cỡ ly / dung tích ở Bước 3!', 'warning');
+    }
+
+    const firstSize = allSizeRows[0];
+    const extraVariants = allSizeRows.slice(1).map(s => ({
+      name: s.name,
+      volumeMl: s.portionVolume || 0,
+      scaleFactor: s.scaleFactor || 1,
+      portionVolume: s.portionVolume || 0,
+      portionCount: s.portionCount || 0,
+      packagingCost: s.packagingCost,
+      extraPackagingCost: 0,
+      price: s.price
+    }));
 
     const payload = {
       name: document.getElementById('prod-name').value.trim(),
@@ -2913,32 +2876,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       batchYieldVolume: Number(document.getElementById('prod-batch-yield-vol').value) || 2000,
       batchYieldUnit: document.getElementById('prod-batch-yield-unit').value || 'ml',
       batchSplitMode,
-      batchPortionVolume: Number(document.getElementById('prod-batch-portion-vol').value) || 150,
-      batchPortionCount: Number(document.getElementById('prod-batch-portion-count').value) || 15,
+      batchPortionVolume: firstSize.portionVolume || 150,
+      batchPortionCount: firstSize.portionCount || 15,
       perCupExtras,
-      price: Number(document.getElementById('prod-price').value),
-      baseSizeLabel: document.getElementById('prod-base-size').value.trim() || 'Ly 500ml',
-      baseVolumeMl: Number(document.getElementById('prod-base-vol').value) || 500,
+      price: firstSize.price,
+      baseSizeLabel: firstSize.name,
+      baseVolumeMl: firstSize.portionVolume || 500,
       targetCostPercent: Number(document.getElementById('prod-target-cost').value) || 30,
-      packagingCost: Number(document.getElementById('prod-packaging-cost').value) || 0,
+      packagingCost: firstSize.packagingCost,
       packagingNote: document.getElementById('prod-packaging-note').value.trim(),
       wastePercent: Number(document.getElementById('prod-waste-percent').value) || 0,
       image: document.getElementById('prod-image').value.trim() || '🥤',
       description: document.getElementById('prod-description').value.trim(),
       recipe,
-      variants,
-      bottlingConfig: {
-        enabled: document.getElementById('prod-bottling-enabled').checked,
-        bottleVolumeMl: Number(document.getElementById('prod-bottle-vol').value) || 330,
-        bottleCost: Number(document.getElementById('prod-bottle-cost').value) || 0,
-        sellPricePerBottle: Number(document.getElementById('prod-bottle-price').value) || 0
-      }
+      variants: extraVariants
     };
 
     try {
       if (id) await API.updateProduct(id, payload);
       else await API.createProduct(payload);
-      showToast('Lưu món nước & công thức thành công!');
+      showToast('Lưu món nước & bảng giá thành công!');
       window.closeModal('modal-product');
       loadCostingData();
     } catch (err) {

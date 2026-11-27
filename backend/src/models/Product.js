@@ -45,6 +45,11 @@ const productVariantSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  packagingCost: {
+    type: Number,
+    min: 0,
+    default: null
+  },
   extraPackagingCost: {
     type: Number,
     min: 0,

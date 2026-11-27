@@ -263,7 +263,7 @@ function computeProductCostAndStats(product, ingredientMap = null) {
     const batchTotalCost = Math.round(rawRecipeCost + batchWasteCost);
     const costPerYieldUnit = yieldVol > 0 ? round4(batchTotalCost / yieldVol) : 0;
 
-    const calcBatchPortion = (label, portionVolInput, portionCountInput, sellPrice, extraPkg = 0, isBase = false) => {
+    const calcBatchPortion = (label, portionVolInput, portionCountInput, sellPrice, exactPkgCost = null, extraPkg = 0, isBase = false) => {
       let cupsPerBatch = 0;
       let portionVolume = 0;
       let leftoverVolume = 0;
@@ -284,7 +284,7 @@ function computeProductCostAndStats(product, ingredientMap = null) {
       }
 
       const liquidCostPerCup = Math.round(batchTotalCost * fractionOfBatch);
-      const totalPkg = packagingCost + extraPkg;
+      const totalPkg = exactPkgCost !== null && exactPkgCost !== undefined ? Number(exactPkgCost) : (packagingCost + extraPkg);
       const costPrice = Math.round(liquidCostPerCup + perCupExtrasCost + totalPkg);
       const kcal = Math.round(rawRecipeKcal * fractionOfBatch + perCupExtrasKcal);
       const price = Number(sellPrice) || 0;
@@ -325,6 +325,7 @@ function computeProductCostAndStats(product, ingredientMap = null) {
       product.batchPortionVolume || 150,
       product.batchPortionCount || 15,
       product.price,
+      packagingCost,
       0,
       true
     );
@@ -334,8 +335,9 @@ function computeProductCostAndStats(product, ingredientMap = null) {
       for (const v of product.variants) {
         const vVol = Number(v.portionVolume) || Number(v.volumeMl) || Math.round((product.batchPortionVolume || 150) * (Number(v.scaleFactor) || 1));
         const vCount = Number(v.portionCount) || Math.max(1, Math.round((product.batchPortionCount || 15) / (Number(v.scaleFactor) || 1)));
+        const exactPkg = v.packagingCost !== null && v.packagingCost !== undefined ? Number(v.packagingCost) : null;
         variantBreakdowns.push(
-          calcBatchPortion(v.name, vVol, vCount, v.price, Number(v.extraPackagingCost) || 0, false)
+          calcBatchPortion(v.name, vVol, vCount, v.price, exactPkg, Number(v.extraPackagingCost) || 0, false)
         );
       }
     }
@@ -479,7 +481,7 @@ function computeProductCostAndStats(product, ingredientMap = null) {
     for (const v of product.variants) {
       const factor = Number(v.scaleFactor) || 1;
       const vExtraPkg = Number(v.extraPackagingCost) || 0;
-      const vPkg = packagingCost + vExtraPkg;
+      const vPkg = v.packagingCost !== null && v.packagingCost !== undefined ? Number(v.packagingCost) : (packagingCost + vExtraPkg);
       const vIngCost = rawRecipeCost * factor * (1 + wastePercent / 100);
       const vCost = Math.round(vIngCost + vPkg);
       const vKcal = Math.round(rawRecipeKcal * factor);

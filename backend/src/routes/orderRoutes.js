@@ -83,7 +83,9 @@ router.post('/', async (req, res) => {
           if (matchedVariant) {
             variantName = matchedVariant.name;
             unitSellPrice = Number(matchedVariant.price) || product.price;
-            unitPkgCost = (Number(product.packagingCost) || 0) + (Number(matchedVariant.extraPackagingCost) || 0);
+            unitPkgCost = matchedVariant.packagingCost !== null && matchedVariant.packagingCost !== undefined
+              ? Number(matchedVariant.packagingCost)
+              : (Number(product.packagingCost) || 0) + (Number(matchedVariant.extraPackagingCost) || 0);
             if (splitMode === 'by_count') {
               const pCount = Math.max(1, Number(matchedVariant.portionCount) || 1);
               recipeMultiplier = 1 / pCount;
@@ -116,7 +118,9 @@ router.post('/', async (req, res) => {
               variantName = matchedVariant.name;
               recipeMultiplier = Number(matchedVariant.scaleFactor) || 1;
               unitSellPrice = Number(matchedVariant.price) || product.price;
-              unitPkgCost = (Number(product.packagingCost) || 0) + (Number(matchedVariant.extraPackagingCost) || 0);
+              unitPkgCost = matchedVariant.packagingCost !== null && matchedVariant.packagingCost !== undefined
+                ? Number(matchedVariant.packagingCost)
+                : (Number(product.packagingCost) || 0) + (Number(matchedVariant.extraPackagingCost) || 0);
             }
           }
         }

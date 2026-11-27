@@ -40,6 +40,7 @@ function sanitizeVariantsArray(arr) {
       portionVolume: Number(v.portionVolume) || 0,
       portionCount: Number(v.portionCount) || 0,
       price: Number(v.price) || 0,
+      packagingCost: v.packagingCost !== null && v.packagingCost !== undefined && v.packagingCost !== '' ? Number(v.packagingCost) : null,
       extraPackagingCost: Number(v.extraPackagingCost) || 0
     }));
 }
